@@ -1,5 +1,5 @@
 <?php
-$page_title = "Result Entry";
+$page_title = "Smart Results Entry";
 $breadcrumb = "Results > Enter Results";
 
 require_once '../../config/config.php';
@@ -13,798 +13,599 @@ if (!is_logged_in() || !in_array($_SESSION['role'], ['admin', 'super_admin'])) {
     redirect(BASE_URL);
 }
 
-// Initialize database connection
 $db = new Database();
 $institution_id = get_institution_id();
 
-// Get filter parameters
-$course_id = isset($_GET['course_id']) ? clean_input($_GET['course_id']) : '';
-$student_id = isset($_GET['student_id']) ? clean_input($_GET['student_id']) : '';
-$session_id = isset($_GET['session_id']) ? clean_input($_GET['session_id']) : '';
-$semester_id = isset($_GET['semester_id']) ? clean_input($_GET['semester_id']) : '';
+// Get current session and semester (the system knows this automatically)
+$current_session = get_current_session($institution_id);
+$current_semester = get_current_semester($institution_id);
 
-// Get current session and semester if not specified
-if (empty($session_id) || empty($semester_id)) {
-    $current_session = get_current_session();
-    $current_semester = get_current_semester();
+if (!$current_session || !$current_semester) {
+    set_flash_message('danger', 'No active academic session or semester found. Please set up the current academic period first.');
+    redirect(ADMIN_URL . '/settings/academic.php');
+}
+
+$session_id = $current_session['session_id'];
+$semester_id = $current_semester['semester_id'];
+
+// Handle AJAX requests for saving results
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    header('Content-Type: application/json');
     
-    if ($current_session && empty($session_id)) {
-        $session_id = $current_session['session_id'];
-    }
-    
-    if ($current_semester && empty($semester_id)) {
-        $semester_id = $current_semester['semester_id'];
-    }
-}
-
-// Get sessions for dropdown
-$db->query("SELECT * FROM sessions WHERE institution_id = :institution_id ORDER BY session_name DESC");
-$db->bind(':institution_id', $institution_id);
-$sessions = $db->resultSet();
-
-// Get semesters for dropdown
-$db->query("SELECT * FROM semesters WHERE institution_id = :institution_id ORDER BY semester_id");
-$db->bind(':institution_id', $institution_id);
-$semesters = $db->resultSet();
-
-// Get courses for dropdown (if student is selected)
-$courses = [];
-if (!empty($student_id) && !empty($session_id) && !empty($semester_id)) {
-    $db->query("SELECT cr.*, c.course_code, c.course_title, c.credit_units
-                FROM course_registrations cr
-                JOIN courses c ON cr.course_id = c.course_id
-                WHERE cr.student_id = :student_id 
-                AND cr.session_id = :session_id 
-                AND cr.semester_id = :semester_id
-                AND cr.institution_id = :institution_id
-                ORDER BY c.course_code");
-    $db->bind(':student_id', $student_id);
-    $db->bind(':session_id', $session_id);
-    $db->bind(':semester_id', $semester_id);
-    $db->bind(':institution_id', $institution_id);
-    $courses = $db->resultSet();
-}
-
-// Get students for dropdown (if course is selected)
-$students = [];
-if (!empty($course_id) && !empty($session_id) && !empty($semester_id)) {
-    $db->query("SELECT cr.*, s.first_name, s.last_name, s.matric_number
-                FROM course_registrations cr
-                JOIN students s ON cr.student_id = s.student_id
-                WHERE cr.course_id = :course_id 
-                AND cr.session_id = :session_id 
-                AND cr.semester_id = :semester_id
-                AND cr.institution_id = :institution_id
-                ORDER BY s.first_name, s.last_name");
-    $db->bind(':course_id', $course_id);
-    $db->bind(':session_id', $session_id);
-    $db->bind(':semester_id', $semester_id);
-    $db->bind(':institution_id', $institution_id);
-    $students = $db->resultSet();
-}
-
-// Get course info if selected
-$course = null;
-if (!empty($course_id)) {
-    $db->query("SELECT c.*, d.department_name 
-                FROM courses c
-                JOIN departments d ON c.department_id = d.department_id
-                WHERE c.course_id = :course_id AND c.institution_id = :institution_id");
-    $db->bind(':course_id', $course_id);
-    $db->bind(':institution_id', $institution_id);
-    $course = $db->single();
-}
-
-// Get student info if selected
-$student = null;
-if (!empty($student_id)) {
-    $db->query("SELECT s.*, d.department_name, l.level_name 
-                FROM students s
-                JOIN departments d ON s.department_id = d.department_id
-                JOIN levels l ON s.level_id = l.level_id
-                WHERE s.student_id = :student_id AND s.institution_id = :institution_id");
-    $db->bind(':student_id', $student_id);
-    $db->bind(':institution_id', $institution_id);
-    $student = $db->single();
-}
-
-// Get session and semester info
-$session = null;
-$semester = null;
-if (!empty($session_id)) {
-    $db->query("SELECT * FROM sessions WHERE session_id = :session_id");
-    $db->bind(':session_id', $session_id);
-    $session = $db->single();
-}
-if (!empty($semester_id)) {
-    $db->query("SELECT * FROM semesters WHERE semester_id = :semester_id");
-    $db->bind(':semester_id', $semester_id);
-    $semester = $db->single();
-}
-
-// Handle form submission for result entry
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_results'])) {
-    $registration_ids = $_POST['registration_id'] ?? [];
-    $ca_scores = $_POST['ca_score'] ?? [];
-    $exam_scores = $_POST['exam_score'] ?? [];
-    $total_scores = $_POST['total_score'] ?? [];
-    
-    $success_count = 0;
-    $error_count = 0;
-    $updated_students = [];
-    
-    foreach ($registration_ids as $index => $registration_id) {
-        if (isset($ca_scores[$index]) && isset($exam_scores[$index]) && isset($total_scores[$index])) {
-            $ca_score = clean_input($ca_scores[$index]);
-            $exam_score = clean_input($exam_scores[$index]);
-            $total_score = clean_input($total_scores[$index]);
+    if ($_POST['action'] === 'save_student_results') {
+        $student_id = clean_input($_POST['student_id']);
+        $results_data = $_POST['results'] ?? [];
+        
+        $db->beginTransaction();
+        
+        try {
+            $success_count = 0;
             
-            // Validate scores
-            if ($ca_score < 0 || $ca_score > 40 || $exam_score < 0 || $exam_score > 60 || $total_score < 0 || $total_score > 100) {
-                $error_count++;
-                continue;
-            }
-            
-            // Calculate grade
-            $grade_info = calculateGrade($total_score);
-            
-            // Check if result already exists
-            $db->query("SELECT result_id FROM results WHERE registration_id = :registration_id");
-            $db->bind(':registration_id', $registration_id);
-            $existing_result = $db->single();
-            
-            if ($existing_result) {
-                // Update existing result
-                $db->query("UPDATE results SET 
-                            ca_score = :ca_score,
-                            exam_score = :exam_score,
-                            total_score = :total_score,
-                            grade = :grade,
-                            grade_point = :grade_point,
-                            remark = :remark,
-                            updated_at = NOW()
-                            WHERE registration_id = :registration_id");
-            } else {
-                // Insert new result
-                $db->query("INSERT INTO results 
-                            (registration_id, ca_score, exam_score, total_score, grade, grade_point, remark, created_at) 
-                            VALUES 
-                            (:registration_id, :ca_score, :exam_score, :total_score, :grade, :grade_point, :remark, NOW())");
-            }
-            
-            $db->bind(':registration_id', $registration_id);
-            $db->bind(':ca_score', $ca_score);
-            $db->bind(':exam_score', $exam_score);
-            $db->bind(':total_score', $total_score);
-            $db->bind(':grade', $grade_info['grade']);
-            $db->bind(':grade_point', $grade_info['grade_point']);
-            $db->bind(':remark', $grade_info['remark']);
-            
-            if ($db->execute()) {
-                $success_count++;
+            foreach ($results_data as $result) {
+                $registration_id = clean_input($result['registration_id']);
+                $ca_score = floatval($result['ca_score']);
+                $exam_score = floatval($result['exam_score']);
+                $total_score = $ca_score + $exam_score;
                 
-                // Get student ID for this registration
-                $db->query("SELECT student_id FROM course_registrations WHERE registration_id = :registration_id");
-                $db->bind(':registration_id', $registration_id);
-                $reg = $db->single();
-                
-                if ($reg) {
-                    $updated_students[$reg['student_id']] = true;
+                // Validate scores
+                if ($ca_score < 0 || $ca_score > 40 || $exam_score < 0 || $exam_score > 60) {
+                    continue;
                 }
-            } else {
-                $error_count++;
+                
+                // Calculate grade
+                $grade_info = calculateGrade($total_score);
+                
+                // Check if result exists
+                $db->query("SELECT result_id FROM results WHERE registration_id = :registration_id");
+                $db->bind(':registration_id', $registration_id);
+                $existing = $db->single();
+                
+                if ($existing) {
+                    // Update existing result
+                    $db->query("UPDATE results SET 
+                                ca_score = :ca_score,
+                                exam_score = :exam_score,
+                                total_score = :total_score,
+                                grade = :grade,
+                                grade_point = :grade_point,
+                                remark = :remark,
+                                updated_at = NOW()
+                                WHERE registration_id = :registration_id");
+                } else {
+                    // Insert new result
+                    $db->query("INSERT INTO results 
+                                (registration_id, ca_score, exam_score, total_score, grade, grade_point, remark) 
+                                VALUES 
+                                (:registration_id, :ca_score, :exam_score, :total_score, :grade, :grade_point, :remark)");
+                }
+                
+                $db->bind(':registration_id', $registration_id);
+                $db->bind(':ca_score', $ca_score);
+                $db->bind(':exam_score', $exam_score);
+                $db->bind(':total_score', $total_score);
+                $db->bind(':grade', $grade_info['grade']);
+                $db->bind(':grade_point', $grade_info['point']);
+                $db->bind(':remark', $grade_info['remark']);
+                
+                if ($db->execute()) {
+                    $success_count++;
+                }
             }
+            
+            // Update GPAs for this student
+            updateSemesterGPA($student_id, $session_id, $semester_id);
+            updateCumulativeGPA($student_id);
+            
+            $db->endTransaction();
+            
+            echo json_encode([
+                'success' => true,
+                'message' => "$success_count result(s) saved successfully"
+            ]);
+            
+        } catch (Exception $e) {
+            $db->cancelTransaction();
+            echo json_encode([
+                'success' => false,
+                'message' => 'Error saving results: ' . $e->getMessage()
+            ]);
         }
+        exit;
     }
-    
-    // Update GPAs for affected students
-    foreach (array_keys($updated_students) as $updated_student_id) {
-        updateSemesterGPA($updated_student_id, $session_id, $semester_id);
-        updateCumulativeGPA($updated_student_id);
-    }
-    
-    if ($success_count > 0) {
-        set_flash_message('success', $success_count . ' result(s) saved successfully.');
-    }
-    
-    if ($error_count > 0) {
-        set_flash_message('danger', $error_count . ' result(s) failed to save. Please check the values and try again.');
-    }
-    
-    // Redirect to maintain clean URL
-    $redirect_url = 'entry.php?';
-    if (!empty($course_id)) $redirect_url .= 'course_id=' . $course_id . '&';
-    if (!empty($student_id)) $redirect_url .= 'student_id=' . $student_id . '&';
-    if (!empty($session_id)) $redirect_url .= 'session_id=' . $session_id . '&';
-    if (!empty($semester_id)) $redirect_url .= 'semester_id=' . $semester_id;
-    
-    redirect($redirect_url);
 }
 
-// Include header
+// Get all students who have course registrations in current session/semester
+$db->query("SELECT DISTINCT s.student_id, s.matric_number, s.first_name, s.last_name,
+            d.department_name, l.level_name,
+            COUNT(cr.registration_id) as total_courses,
+            COUNT(r.result_id) as completed_results
+            FROM students s
+            JOIN course_registrations cr ON s.student_id = cr.student_id
+            JOIN departments d ON s.department_id = d.department_id
+            JOIN levels l ON s.level_id = l.level_id
+            LEFT JOIN results r ON cr.registration_id = r.registration_id
+            WHERE cr.session_id = :session_id 
+            AND cr.semester_id = :semester_id
+            AND s.institution_id = :institution_id
+            GROUP BY s.student_id
+            ORDER BY s.matric_number");
+
+$db->bind(':session_id', $session_id);
+$db->bind(':semester_id', $semester_id);
+$db->bind(':institution_id', $institution_id);
+
+$students = $db->resultSet();
+
+// Calculate overall statistics
+$total_students = count($students);
+$total_registrations = array_sum(array_column($students, 'total_courses'));
+$total_completed = array_sum(array_column($students, 'completed_results'));
+$completion_rate = $total_registrations > 0 ? round(($total_completed / $total_registrations) * 100, 1) : 0;
+
 include_once '../includes/header.php';
 ?>
 
 <div class="container-fluid py-4">
-    <!-- Filter Form -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0">
-                <i class="bi bi-funnel me-2"></i>Select Parameters
-            </h5>
-        </div>
-        <div class="card-body">
-            <form method="GET" action="" id="filterForm">
-                <div class="row g-3">
-                    <div class="col-md-3">
-                        <label class="form-label">Academic Session</label>
-                        <select class="form-select" name="session_id" id="sessionSelect" required>
-                            <option value="">Select Session</option>
-                            <?php foreach ($sessions as $sess): ?>
-                                <option value="<?php echo $sess['session_id']; ?>" 
-                                        <?php echo ($session_id == $sess['session_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($sess['session_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <label class="form-label">Semester</label>
-                        <select class="form-select" name="semester_id" id="semesterSelect" required>
-                            <option value="">Select Semester</option>
-                            <?php foreach ($semesters as $sem): ?>
-                                <option value="<?php echo $sem['semester_id']; ?>" 
-                                        <?php echo ($semester_id == $sem['semester_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($sem['semester_name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <label class="form-label">Course</label>
-                        <select class="form-select" name="course_id" id="courseSelect" <?php echo empty($student_id) ? '' : 'required'; ?>>
-                            <option value="">Select Course</option>
-                            <?php if (!empty($student_id) && !empty($courses)): ?>
-                                <?php foreach ($courses as $c): ?>
-                                    <option value="<?php echo $c['course_id']; ?>" 
-                                            <?php echo ($course_id == $c['course_id']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($c['course_code'] . ' - ' . $c['course_title']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            <?php elseif (!empty($course_id) && $course): ?>
-                                <option value="<?php echo $course['course_id']; ?>" selected>
-                                    <?php echo htmlspecialchars($course['course_code'] . ' - ' . $course['course_title']); ?>
-                                </option>
-                            <?php endif; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="col-md-3">
-                        <label class="form-label">Student</label>
-                        <select class="form-select" name="student_id" id="studentSelect" <?php echo empty($course_id) ? '' : 'required'; ?>>
-                            <option value="">Select Student</option>
-                            <?php if (!empty($course_id) && !empty($students)): ?>
-                                <?php foreach ($students as $s): ?>
-                                    <option value="<?php echo $s['student_id']; ?>" 
-                                            <?php echo ($student_id == $s['student_id']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($s['matric_number'] . ' - ' . $s['first_name'] . ' ' . $s['last_name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            <?php elseif (!empty($student_id) && $student): ?>
-                                <option value="<?php echo $student['student_id']; ?>" selected>
-                                    <?php echo htmlspecialchars($student['matric_number'] . ' - ' . $student['first_name'] . ' ' . $student['last_name']); ?>
-                                </option>
-                            <?php endif; ?>
-                        </select>
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-1">
+                                <i class="bi bi-lightning-charge me-2"></i>
+                                Smart Results Entry
+                            </h4>
+                            <p class="mb-0 opacity-75">
+                                Current Period: <strong><?php echo htmlspecialchars($current_session['session_name'] . ' - ' . $current_semester['semester_name']); ?></strong>
+                            </p>
+                        </div>
+                        <div class="text-end">
+                            <div class="row g-3 text-center">
+                                <div class="col">
+                                    <div class="h5 mb-0"><?php echo $total_students; ?></div>
+                                    <small class="opacity-75">Students</small>
+                                </div>
+                                <div class="col">
+                                    <div class="h5 mb-0"><?php echo $total_registrations; ?></div>
+                                    <small class="opacity-75">Registrations</small>
+                                </div>
+                                <div class="col">
+                                    <div class="h5 mb-0"><?php echo $completion_rate; ?>%</div>
+                                    <small class="opacity-75">Completed</small>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="d-flex justify-content-between mt-3">
-                    <button type="button" class="btn btn-secondary" onclick="clearFilters()">
-                        <i class="bi bi-x-circle me-2"></i>Clear Filters
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="bi bi-search me-2"></i>Load Results
-                    </button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
-    
-    <?php if ((!empty($course_id) && empty($student_id)) || (!empty($student_id) && empty($course_id))): ?>
-        <!-- Results Entry Form -->
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <?php if (!empty($course_id) && $course): ?>
-                        <i class="bi bi-pencil-square me-2"></i>Enter Results for <?php echo htmlspecialchars($course['course_code'] . ' - ' . $course['course_title']); ?>
-                    <?php elseif (!empty($student_id) && $student): ?>
-                        <i class="bi bi-pencil-square me-2"></i>Enter Results for <?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name'] . ' (' . $student['matric_number'] . ')'); ?>
-                    <?php endif; ?>
-                </h5>
-                
-                <?php if (!empty($session) && !empty($semester)): ?>
-                    <span class="badge bg-info fs-6">
-                        <?php echo htmlspecialchars($session['session_name'] . ' - ' . $semester['semester_name']); ?>
-                    </span>
-                <?php endif; ?>
-            </div>
-            
-            <div class="card-body">
-                <?php if ((!empty($course_id) && empty($students)) || (!empty($student_id) && empty($courses))): ?>
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        <?php if (!empty($course_id)): ?>
-                            No students registered for this course in the selected session and semester.
-                        <?php else: ?>
-                            No courses registered for this student in the selected session and semester.
-                        <?php endif; ?>
+
+    <!-- Students List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="bi bi-people me-2"></i>Students Requiring Results Entry
+                        </h6>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="location.reload()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                            <a href="bulk-upload.php" class="btn btn-sm btn-success">
+                                <i class="bi bi-upload me-1"></i>Bulk Upload
+                            </a>
+                        </div>
                     </div>
-                <?php else: ?>
-                    <form method="POST" action="" class="result-form">
+                </div>
+                <div class="card-body p-0">
+                    <?php if (empty($students)): ?>
+                        <div class="text-center py-5">
+                            <i class="bi bi-people-fill display-1 text-muted"></i>
+                            <h4 class="text-muted mt-3">No Students Found</h4>
+                            <p class="text-muted">No students have registered for courses in the current academic period.</p>
+                            <a href="../courses/registration.php" class="btn btn-primary">
+                                <i class="bi bi-journal-check me-2"></i>Manage Course Registration
+                            </a>
+                        </div>
+                    <?php else: ?>
                         <div class="table-responsive">
-                            <table class="table table-hover">
+                            <table class="table table-hover mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <?php if (!empty($course_id)): ?>
-                                            <th>Matric Number</th>
-                                            <th>Student Name</th>
-                                        <?php else: ?>
-                                            <th>Course Code</th>
-                                            <th>Course Title</th>
-                                            <th>Credit Units</th>
-                                        <?php endif; ?>
-                                        <th class="text-center">CA Score (40)</th>
-                                        <th class="text-center">Exam Score (60)</th>
-                                        <th class="text-center">Total Score (100)</th>
-                                        <th class="text-center">Grade</th>
+                                        <th>Student</th>
+                                        <th>Department</th>
+                                        <th>Level</th>
+                                        <th class="text-center">Courses</th>
+                                        <th class="text-center">Results Status</th>
+                                        <th class="text-center">Progress</th>
+                                        <th class="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php if (!empty($course_id) && !empty($students)): ?>
-                                        <?php foreach ($students as $index => $s): ?>
-                                            <?php
-                                            // Get existing result if any
-                                            $db->query("SELECT * FROM results WHERE registration_id = :registration_id");
-                                            $db->bind(':registration_id', $s['registration_id']);
-                                            $result = $db->single();
-                                            
-                                            $ca_score = $result ? $result['ca_score'] : '';
-                                            $exam_score = $result ? $result['exam_score'] : '';
-                                            $total_score = $result ? $result['total_score'] : '';
-                                            $grade = $result ? $result['grade'] : '';
-                                            ?>
-                                            <tr>
-                                                <td>
-                                                    <input type="hidden" name="registration_id[<?php echo $index; ?>]" value="<?php echo $s['registration_id']; ?>">
-                                                    <span class="badge bg-primary"><?php echo htmlspecialchars($s['matric_number']); ?></span>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($s['first_name'] . ' ' . $s['last_name']); ?></td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input ca-score" 
-                                                           name="ca_score[<?php echo $index; ?>]" 
-                                                           min="0" max="40" step="0.1"
-                                                           value="<?php echo $ca_score; ?>"
-                                                           data-index="<?php echo $index; ?>">
-                                                </td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input exam-score" 
-                                                           name="exam_score[<?php echo $index; ?>]" 
-                                                           min="0" max="60" step="0.1"
-                                                           value="<?php echo $exam_score; ?>"
-                                                           data-index="<?php echo $index; ?>">
-                                                </td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input total-score" 
-                                                           name="total_score[<?php echo $index; ?>]" 
-                                                           min="0" max="100" step="0.1"
-                                                           value="<?php echo $total_score; ?>"
-                                                           data-index="<?php echo $index; ?>" readonly>
-                                                </td>
-                                                <td>
-                                                    <input type="text" class="form-control grade-display" 
-                                                           value="<?php echo $grade; ?>" readonly>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php elseif (!empty($student_id) && !empty($courses)): ?>
-                                        <?php foreach ($courses as $index => $c): ?>
-                                            <?php
-                                            // Get existing result if any
-                                            $db->query("SELECT * FROM results WHERE registration_id = :registration_id");
-                                            $db->bind(':registration_id', $c['registration_id']);
-                                            $result = $db->single();
-                                            
-                                            $ca_score = $result ? $result['ca_score'] : '';
-                                            $exam_score = $result ? $result['exam_score'] : '';
-                                            $total_score = $result ? $result['total_score'] : '';
-                                            $grade = $result ? $result['grade'] : '';
-                                            ?>
-                                            <tr>
-                                                <td>
-                                                    <input type="hidden" name="registration_id[<?php echo $index; ?>]" value="<?php echo $c['registration_id']; ?>">
-                                                    <span class="badge bg-primary"><?php echo htmlspecialchars($c['course_code']); ?></span>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($c['course_title']); ?></td>
-                                                <td><span class="badge bg-info"><?php echo $c['credit_units']; ?></span></td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input ca-score" 
-                                                           name="ca_score[<?php echo $index; ?>]" 
-                                                           min="0" max="40" step="0.1"
-                                                           value="<?php echo $ca_score; ?>"
-                                                           data-index="<?php echo $index; ?>">
-                                                </td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input exam-score" 
-                                                           name="exam_score[<?php echo $index; ?>]" 
-                                                           min="0" max="60" step="0.1"
-                                                           value="<?php echo $exam_score; ?>"
-                                                           data-index="<?php echo $index; ?>">
-                                                </td>
-                                                <td>
-                                                    <input type="number" class="form-control score-input total-score" 
-                                                           name="total_score[<?php echo $index; ?>]" 
-                                                           min="0" max="100" step="0.1"
-                                                           value="<?php echo $total_score; ?>"
-                                                           data-index="<?php echo $index; ?>" readonly>
-                                                </td>
-                                                <td>
-                                                    <input type="text" class="form-control grade-display" 
-                                                           value="<?php echo $grade; ?>" readonly>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
+                                    <?php foreach ($students as $student): ?>
+                                        <?php
+                                        $completion_percent = $student['total_courses'] > 0 
+                                            ? round(($student['completed_results'] / $student['total_courses']) * 100) 
+                                            : 0;
+                                        
+                                        $status_color = ($completion_percent === 100) ? 'success' : 
+                                                        (($completion_percent > 0) ? 'warning' : 'danger');
+
+                                        $status_text = ($completion_percent === 100) ? 'Complete' : 
+                                                       (($completion_percent > 0) ? 'In Progress' : 'Not Started');
+                                        ?>
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <div class="avatar-circle bg-primary text-white me-3">
+                                                        <?php echo strtoupper(substr($student['first_name'], 0, 1) . substr($student['last_name'], 0, 1)); ?>
+                                                    </div>
+                                                    <div>
+                                                        <div class="fw-bold"><?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></div>
+                                                        <small class="text-muted"><?php echo htmlspecialchars($student['matric_number']); ?></small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-info"><?php echo htmlspecialchars($student['department_name']); ?></span>
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-secondary"><?php echo htmlspecialchars($student['level_name']); ?></span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-primary"><?php echo $student['total_courses']; ?></span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="badge bg-<?php echo $status_color; ?>">
+                                                    <?php echo $student['completed_results']; ?>/<?php echo $student['total_courses']; ?>
+                                                </span>
+                                                <br>
+                                                <small class="text-<?php echo $status_color; ?>"><?php echo $status_text; ?></small>
+                                            </td>
+                                            <td class="text-center">
+                                                <div class="progress" style="height: 20px; width: 100px;">
+                                                    <div class="progress-bar bg-<?php echo $status_color; ?>" 
+                                                         role="progressbar" 
+                                                         style="width: <?php echo $completion_percent; ?>%" 
+                                                         aria-valuenow="<?php echo $completion_percent; ?>" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                        <?php echo $completion_percent; ?>%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="text-center">
+                                                <button class="btn btn-sm btn-primary" 
+                                                        onclick="enterStudentResults(<?php echo $student['student_id']; ?>, '<?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?>', '<?php echo htmlspecialchars($student['matric_number']); ?>')">
+                                                    <i class="bi bi-pencil-square me-1"></i>
+                                                    <?php echo $completion_percent === 0 ? 'Enter Results' : 'Edit Results'; ?>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
-                        
-                        <div class="d-flex justify-content-end mt-3">
-                            <button type="submit" name="save_results" class="btn btn-primary">
-                                <i class="bi bi-save me-2"></i>Save Results
-                            </button>
-                        </div>
-                    </form>
-                <?php endif; ?>
-            </div>
-        </div>
-    <?php elseif (!empty($course_id) && !empty($student_id)): ?>
-        <!-- Single Student-Course Result Entry -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="bi bi-pencil-square me-2"></i>Enter Result
-                </h5>
-            </div>
-            
-            <div class="card-body">
-                <?php
-                // Get registration record
-                $db->query("SELECT cr.* FROM course_registrations cr
-                            WHERE cr.student_id = :student_id 
-                            AND cr.course_id = :course_id
-                            AND cr.session_id = :session_id
-                            AND cr.semester_id = :semester_id
-                            AND cr.institution_id = :institution_id");
-                $db->bind(':student_id', $student_id);
-                $db->bind(':course_id', $course_id);
-                $db->bind(':session_id', $session_id);
-                $db->bind(':semester_id', $semester_id);
-                $db->bind(':institution_id', $institution_id);
-                $registration = $db->single();
-                
-                if (!$registration) {
-                    echo '<div class="alert alert-danger">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            No registration found for this student and course in the selected session and semester.
-                          </div>';
-                } else {
-                    // Get existing result if any
-                    $db->query("SELECT * FROM results WHERE registration_id = :registration_id");
-                    $db->bind(':registration_id', $registration['registration_id']);
-                    $result = $db->single();
-                    
-                    $ca_score = $result ? $result['ca_score'] : '';
-                    $exam_score = $result ? $result['exam_score'] : '';
-                    $total_score = $result ? $result['total_score'] : '';
-                    $grade = $result ? $result['grade'] : '';
-                ?>
-                
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0">Student Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <p><strong>Name:</strong> <?php echo htmlspecialchars($student['first_name'] . ' ' . $student['last_name']); ?></p>
-                                <p><strong>Matric Number:</strong> <?php echo htmlspecialchars($student['matric_number']); ?></p>
-                                <p><strong>Department:</strong> <?php echo htmlspecialchars($student['department_name']); ?></p>
-                                <p><strong>Level:</strong> <?php echo htmlspecialchars($student['level_name']); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="card h-100">
-                            <div class="card-header bg-light">
-                                <h6 class="mb-0">Course Information</h6>
-                            </div>
-                            <div class="card-body">
-                                <p><strong>Course Code:</strong> <?php echo htmlspecialchars($course['course_code']); ?></p>
-                                <p><strong>Course Title:</strong> <?php echo htmlspecialchars($course['course_title']); ?></p>
-                                <p><strong>Credit Units:</strong> <?php echo $course['credit_units']; ?></p>
-                                <p><strong>Department:</strong> <?php echo htmlspecialchars($course['department_name']); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <form method="POST" action="" class="result-form">
-                    <input type="hidden" name="registration_id[0]" value="<?php echo $registration['registration_id']; ?>">
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">CA Score (40)</label>
-                                <input type="number" class="form-control ca-score" 
-                                       name="ca_score[0]" 
-                                       min="0" max="40" step="0.1"
-                                       value="<?php echo $ca_score; ?>"
-                                       data-index="0">
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Exam Score (60)</label>
-                                <input type="number" class="form-control exam-score" 
-                                       name="exam_score[0]" 
-                                       min="0" max="60" step="0.1"
-                                       value="<?php echo $exam_score; ?>"
-                                       data-index="0">
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Total Score (100)</label>
-                                <input type="number" class="form-control total-score" 
-                                       name="total_score[0]" 
-                                       min="0" max="100" step="0.1"
-                                       value="<?php echo $total_score; ?>"
-                                       data-index="0" readonly>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Grade</label>
-                                <input type="text" class="form-control grade-display" 
-                                       value="<?php echo $grade; ?>" readonly>
-                            </div>
-                        </div>
-                        
-                        <?php if ($result): ?>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Last Updated</label>
-                                <input type="text" class="form-control" 
-                                       value="<?php echo format_date($result['updated_at'] ?? $result['created_at'], 'd M, Y H:i'); ?>" readonly>
-                            </div>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between mt-3">
-                        <a href="entry.php" class="btn btn-secondary">
-                            <i class="bi bi-arrow-left me-2"></i>Back to Result Entry
-                        </a>
-                        <button type="submit" name="save_results" class="btn btn-primary">
-                            <i class="bi bi-save me-2"></i>Save Result
-                        </button>
-                    </div>
-                </form>
-                <?php } ?>
-            </div>
-        </div>
-    <?php elseif (!empty($session_id) && !empty($semester_id)): ?>
-        <!-- Course Selection -->
-        <div class="row">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-journal-bookmark me-2"></i>Select Course
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <?php
-                        // Get courses with registrations in this session/semester
-                                               // Get courses with registrations in this session/semester
-                        $db->query("SELECT DISTINCT c.course_id, c.course_code, c.course_title, c.credit_units,
-                                    d.department_name, COUNT(cr.registration_id) as student_count,
-                                    (SELECT COUNT(*) FROM course_registrations cr2 
-                                     JOIN results r ON cr2.registration_id = r.registration_id 
-                                     WHERE cr2.course_id = c.course_id 
-                                     AND cr2.session_id = :session_id 
-                                     AND cr2.semester_id = :semester_id) as result_count
-                                    FROM courses c
-                                    JOIN course_registrations cr ON c.course_id = cr.course_id
-                                    JOIN departments d ON c.department_id = d.department_id
-                                    WHERE cr.session_id = :session_id 
-                                    AND cr.semester_id = :semester_id
-                                    AND c.institution_id = :institution_id
-                                    GROUP BY c.course_id
-                                    ORDER BY c.course_code");
-                        $db->bind(':session_id', $session_id);
-                        $db->bind(':semester_id', $semester_id);
-                        $db->bind(':institution_id', $institution_id);
-                        $available_courses = $db->resultSet();
-                        
-                        if (empty($available_courses)) {
-                            echo '<div class="alert alert-info">
-                                    <i class="bi bi-info-circle me-2"></i>
-                                    No courses with registrations found for the selected session and semester.
-                                  </div>';
-                        } else {
-                        ?>
-                        <div class="list-group">
-                            <?php foreach ($available_courses as $ac): ?>
-                                <a href="entry.php?course_id=<?php echo $ac['course_id']; ?>&session_id=<?php echo $session_id; ?>&semester_id=<?php echo $semester_id; ?>" 
-                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-bold"><?php echo htmlspecialchars($ac['course_code']); ?></div>
-                                        <div><?php echo htmlspecialchars($ac['course_title']); ?></div>
-                                        <small class="text-muted"><?php echo htmlspecialchars($ac['department_name']); ?> • <?php echo $ac['credit_units']; ?> Units</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div class="badge bg-primary rounded-pill"><?php echo $ac['student_count']; ?> Students</div>
-                                        <div class="mt-1">
-                                            <?php if ($ac['result_count'] == 0): ?>
-                                                <span class="badge bg-danger">No Results</span>
-                                            <?php elseif ($ac['result_count'] < $ac['student_count']): ?>
-                                                <span class="badge bg-warning"><?php echo $ac['result_count']; ?>/<?php echo $ac['student_count']; ?> Results</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">All Results Entered</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php } ?>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">
-                            <i class="bi bi-people me-2"></i>Select Student
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <?php
-                        // Get students with registrations in this session/semester
-                        $db->query("SELECT DISTINCT s.student_id, s.first_name, s.last_name, s.matric_number,
-                                    d.department_name, l.level_name, COUNT(cr.registration_id) as course_count,
-                                    (SELECT COUNT(*) FROM course_registrations cr2 
-                                     JOIN results r ON cr2.registration_id = r.registration_id 
-                                     WHERE cr2.student_id = s.student_id 
-                                     AND cr2.session_id = :session_id 
-                                     AND cr2.semester_id = :semester_id) as result_count
-                                    FROM students s
-                                    JOIN course_registrations cr ON s.student_id = cr.student_id
-                                    JOIN departments d ON s.department_id = d.department_id
-                                    JOIN levels l ON s.level_id = l.level_id
-                                    WHERE cr.session_id = :session_id 
-                                    AND cr.semester_id = :semester_id
-                                    AND s.institution_id = :institution_id
-                                    GROUP BY s.student_id
-                                    ORDER BY s.first_name, s.last_name");
-                        $db->bind(':session_id', $session_id);
-                        $db->bind(':semester_id', $semester_id);
-                        $db->bind(':institution_id', $institution_id);
-                        $available_students = $db->resultSet();
-                        
-                        if (empty($available_students)) {
-                            echo '<div class="alert alert-info">
-                                    <i class="bi bi-info-circle me-2"></i>
-                                    No students with course registrations found for the selected session and semester.
-                                  </div>';
-                        } else {
-                        ?>
-                        <div class="list-group">
-                            <?php foreach ($available_students as $as): ?>
-                                <a href="entry.php?student_id=<?php echo $as['student_id']; ?>&session_id=<?php echo $session_id; ?>&semester_id=<?php echo $semester_id; ?>" 
-                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-bold"><?php echo htmlspecialchars($as['first_name'] . ' ' . $as['last_name']); ?></div>
-                                        <div><?php echo htmlspecialchars($as['matric_number']); ?></div>
-                                        <small class="text-muted"><?php echo htmlspecialchars($as['department_name']); ?> • <?php echo htmlspecialchars($as['level_name']); ?></small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div class="badge bg-primary rounded-pill"><?php echo $as['course_count']; ?> Courses</div>
-                                        <div class="mt-1">
-                                            <?php if ($as['result_count'] == 0): ?>
-                                                <span class="badge bg-danger">No Results</span>
-                                            <?php elseif ($as['result_count'] < $as['course_count']): ?>
-                                                <span class="badge bg-warning"><?php echo $as['result_count']; ?>/<?php echo $as['course_count']; ?> Results</span>
-                                            <?php else: ?>
-                                                <span class="badge bg-success">All Results Entered</span>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                        <?php } ?>
-                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
-    <?php endif; ?>
+    </div>
 </div>
 
+<!-- Results Entry Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-pencil-square me-2"></i>Enter Results for <span id="studentName"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Student Info Card -->
+                <div class="card border-primary mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0">
+                            <i class="bi bi-person me-2"></i>Student Information
+                        </h6>
+                    </div>
+                    <div class="card-body" id="studentInfo">
+                        <!-- Student info will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Results Entry Form -->
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="bi bi-table me-2"></i>Course Results
+                            </h6>
+                            <button class="btn btn-sm btn-outline-primary" onclick="calculateAllTotals()">
+                                <i class="bi bi-calculator me-1"></i>Calculate All
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive" style="max-height: 400px;">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th>Course</th>
+                                        <th class="text-center">Credit Units</th>
+                                        <th class="text-center">CA Score (40)</th>
+                                        <th class="text-center">Exam Score (60)</th>
+                                        <th class="text-center">Total (100)</th>
+                                        <th class="text-center">Grade</th>
+                                        <th class="text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="coursesTableBody">
+                                    <!-- Courses will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveResultsBtn">
+                    <i class="bi bi-save me-2"></i>Save All Results
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.avatar-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.progress {
+    margin: 0 auto;
+}
+
+.card.border-primary {
+    border-width: 2px !important;
+}
+
+.bg-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+</style>
+
 <script>
-// JavaScript for result entry form
-document.addEventListener('DOMContentLoaded', function() {
-    // Function to calculate total score
-    function calculateTotal(index) {
-        const caInput = document.querySelector(`.ca-score[data-index="${index}"]`);
-        const examInput = document.querySelector(`.exam-score[data-index="${index}"]`);
-        const totalInput = document.querySelector(`.total-score[data-index="${index}"]`);
-        const gradeDisplay = document.querySelectorAll('.grade-display')[index];
-        
-        if (caInput && examInput && totalInput) {
-            const ca = parseFloat(caInput.value) || 0;
-            const exam = parseFloat(examInput.value) || 0;
-            const total = ca + exam;
-            
-            totalInput.value = total.toFixed(1);
-            
-            // Update grade display
-            if (total >= 0) {
-                let grade = '';
-                
-                if (total >= 70) grade = 'A';
-                else if (total >= 60) grade = 'B';
-                else if (total >= 50) grade = 'C';
-                else if (total >= 45) grade = 'D';
-                else if (total >= 40) grade = 'E';
-                else grade = 'F';
-                
-                if (gradeDisplay) gradeDisplay.value = grade;
-            } else {
-                if (gradeDisplay) gradeDisplay.value = '';
-            }
-        }
-    }
+let currentStudentId = null;
+
+function enterStudentResults(studentId, studentName, matricNumber) {
+    currentStudentId = studentId;
     
-    // Add event listeners to CA and Exam score inputs
-    document.querySelectorAll('.ca-score, .exam-score').forEach(input => {
-        input.addEventListener('input', function() {
-            const index = this.getAttribute('data-index');
-            calculateTotal(index);
-        });
+    // Update modal title
+    $('#studentName').text(studentName);
+    
+    // Load student courses and results
+    loadStudentCourses(studentId, studentName, matricNumber);
+    
+    // Show modal
+    $('#resultsModal').modal('show');
+}
+
+function loadStudentCourses(studentId, studentName, matricNumber) {
+    // Show loading
+    $('#studentInfo').html('<div class="text-center"><div class="spinner-border text-primary"></div></div>');
+    $('#coursesTableBody').html('<tr><td colspan="7" class="text-center"><div class="spinner-border text-primary"></div></td></tr>');
+    
+    // Get student courses with current results
+    $.get('get_student_courses.php', {
+        student_id: studentId,
+        session_id: <?php echo $session_id; ?>,
+        semester_id: <?php echo $semester_id; ?>
+    }, function(response) {
+        if (response.success) {
+            displayStudentCourses(response.data, studentName, matricNumber);
+        } else {
+            showAlert('danger', 'Error loading student courses');
+        }
+    }, 'json').fail(function() {
+        showAlert('danger', 'Error loading student courses');
+    });
+}
+
+function displayStudentCourses(data, studentName, matricNumber) {
+    const student = data.student;
+    const courses = data.courses;
+    
+    // Update student info
+    $('#studentInfo').html(`
+        <div class="row">
+            <div class="col-md-3">
+                <strong>Name:</strong><br>
+                ${studentName}
+            </div>
+            <div class="col-md-3">
+                <strong>Matric Number:</strong><br>
+                <span class="badge bg-primary">${matricNumber}</span>
+            </div>
+            <div class="col-md-3">
+                <strong>Department:</strong><br>
+                ${student.department_name}
+            </div>
+            <div class="col-md-3">
+                <strong>Level:</strong><br>
+                ${student.level_name}
+            </div>
+        </div>
+    `);
+    
+    // Update courses table
+    let tableBody = '';
+    courses.forEach(function(course, index) {
+        const hasResult = course.result_id !== null;
+        const statusBadge = hasResult 
+            ? '<span class="badge bg-success">Completed</span>' 
+            : '<span class="badge bg-warning">Pending</span>';
+        
+        tableBody += `
+            <tr data-registration-id="${course.registration_id}">
+                <td>
+                    <div>
+                        <strong>${course.course_code}</strong>
+                        <br>
+                        <small class="text-muted">${course.course_title}</small>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <span class="badge bg-info">${course.credit_units}</span>
+                </td>
+                <td class="text-center">
+                    <input type="number" class="form-control form-control-sm ca-score" 
+                           min="0" max="40" step="0.1" 
+                           value="${course.ca_score || ''}" 
+                           data-index="${index}"
+                           placeholder="0-40">
+                </td>
+                <td class="text-center">
+                    <input type="number" class="form-control form-control-sm exam-score" 
+                           min="0" max="60" step="0.1" 
+                           value="${course.exam_score || ''}" 
+                           data-index="${index}"
+                           placeholder="0-60">
+                </td>
+                <td class="text-center">
+                    <input type="number" class="form-control form-control-sm total-score" 
+                           min="0" max="100" step="0.1" 
+                           value="${course.total_score || ''}" 
+                           data-index="${index}" readonly>
+                </td>
+                <td class="text-center">
+                    <input type="text" class="form-control form-control-sm grade-display" 
+                           value="${course.grade || ''}" readonly>
+                </td>
+                <td class="text-center">
+                    ${statusBadge}
+                </td>
+            </tr>
+        `;
+    });
+    
+    $('#coursesTableBody').html(tableBody);
+    
+    // Add event listeners for score calculation
+    $('.ca-score, .exam-score').on('input', function() {
+        const index = $(this).data('index');
+        calculateTotal(index);
     });
     
     // Calculate initial totals
-    document.querySelectorAll('.ca-score').forEach(input => {
-        const index = input.getAttribute('data-index');
+    courses.forEach((course, index) => {
+        if (course.ca_score || course.exam_score) {
+            calculateTotal(index);
+        }
+    });
+}
+
+function calculateTotal(index) {
+    const caScore = parseFloat($(`.ca-score[data-index="${index}"]`).val()) || 0;
+    const examScore = parseFloat($(`.exam-score[data-index="${index}"]`).val()) || 0;
+    const total = caScore + examScore;
+    
+    $(`.total-score[data-index="${index}"]`).val(total.toFixed(1));
+    
+    // Calculate grade
+    let grade = '';
+    if (total >= 70) grade = 'A';
+    else if (total >= 60) grade = 'B';
+    else if (total >= 50) grade = 'C';
+    else if (total >= 45) grade = 'D';
+    else if (total >= 40) grade = 'E';
+    else grade = 'F';
+    
+    $(`.grade-display[data-index="${index}"]`).val(grade);
+}
+
+function calculateAllTotals() {
+    $('.ca-score').each(function() {
+        const index = $(this).data('index');
         calculateTotal(index);
+    });
+}
+
+// Save results
+$('#saveResultsBtn').on('click', function() {
+    const resultsData = [];
+    
+    $('#coursesTableBody tr').each(function() {
+        const registrationId = $(this).data('registration-id');
+        const caScore = $(this).find('.ca-score').val();
+        const examScore = $(this).find('.exam-score').val();
+        
+        if (caScore !== '' && examScore !== '') {
+            resultsData.push({
+                registration_id: registrationId,
+                ca_score: caScore,
+                exam_score: examScore
+            });
+        }
+    });
+    
+    if (resultsData.length === 0) {
+        showAlert('warning', 'No results to save');
+        return;
+    }
+    
+    // Show loading
+    $('#saveResultsBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Saving...');
+    
+    $.post('', {
+        action: 'save_student_results',
+        student_id: currentStudentId,
+        results: resultsData
+    }, function(response) {
+        if (response.success) {
+            showAlert('success', response.message);
+            $('#resultsModal').modal('hide');
+            // Refresh the page to update the status
+            location.reload();
+        } else {
+            showAlert('danger', response.message);
+        }
+    }, 'json').fail(function() {
+        showAlert('danger', 'Error saving results');
+    }).always(function() {
+        $('#saveResultsBtn').prop('disabled', false).html('<i class="bi bi-save me-2"></i>Save All Results');
     });
 });
 
-// Function to clear filters
-function clearFilters() {
-    window.location.href = 'entry.php';
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    $('.alert').remove();
+    $('.container-fluid').prepend(alertHtml);
+    
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
 }
 </script>
 

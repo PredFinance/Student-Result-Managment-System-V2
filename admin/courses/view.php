@@ -38,19 +38,32 @@ if (!$course) {
     redirect(ADMIN_URL . '/courses/index.php');
 }
 
-// Get course registrations
+// Get course registrations with results
 $db->query("SELECT cr.*, s.first_name, s.last_name, s.matric_number,
             sess.session_name, sem.semester_name,
-            r.score, r.grade, r.grade_point
+            r.ca_score, r.exam_score, r.total_score, r.grade, r.grade_point
             FROM course_registrations cr
             JOIN students s ON cr.student_id = s.student_id
-            JOIN sessions sess ON cr.session_id = sess.session_id
+            JOIN academic_sessions sess ON cr.session_id = sess.session_id
             JOIN semesters sem ON cr.semester_id = sem.semester_id
             LEFT JOIN results r ON cr.registration_id = r.registration_id
             WHERE cr.course_id = :course_id
-            ORDER BY sess.session_name DESC, sem.semester_id, s.first_name, s.last_name");
+            ORDER BY sess.session_name DESC, sem.semester_order, s.first_name, s.last_name");
 $db->bind(':course_id', $course_id);
 $registrations = $db->resultSet();
+
+// Helper function for grade colors
+function get_grade_color($grade) {
+    switch($grade) {
+        case 'A': return 'success';
+        case 'B': return 'primary';
+        case 'C': return 'info';
+        case 'D': return 'warning';
+        case 'E': return 'secondary';
+        case 'F': return 'danger';
+        default: return 'secondary';
+    }
+}
 
 // Include header
 include_once '../includes/header.php';
@@ -97,8 +110,8 @@ include_once '../includes/header.php';
                 </div>
                 <div class="card-body">
                     <?php 
-                    $completed_results = array_filter($registrations, function($r) { return $r['score'] !== null; });
-                    $pending_results = array_filter($registrations, function($r) { return $r['score'] === null; });
+                    $completed_results = array_filter($registrations, function($r) { return $r['total_score'] !== null; });
+                    $pending_results = array_filter($registrations, function($r) { return $r['total_score'] === null; });
                     ?>
                     
                     <div class="row mb-3">
@@ -120,7 +133,7 @@ include_once '../includes/header.php';
                     
                     <?php if (!empty($completed_results)): ?>
                         <?php 
-                        $scores = array_column($completed_results, 'score');
+                        $scores = array_column($completed_results, 'total_score');
                         $average = array_sum($scores) / count($scores);
                         ?>
                         <div class="row mb-3">
@@ -177,7 +190,9 @@ include_once '../includes/header.php';
                                         <th>Matric Number</th>
                                         <th>Student Name</th>
                                         <th>Session/Semester</th>
-                                        <th>Score</th>
+                                        <th>CA Score</th>
+                                        <th>Exam Score</th>
+                                        <th>Total Score</th>
                                         <th>Grade</th>
                                         <th>Status</th>
                                         <th>Actions</th>
@@ -201,15 +216,31 @@ include_once '../includes/header.php';
                                                 </small>
                                             </td>
                                             <td>
-                                                <?php if ($reg['score'] !== null): ?>
-                                                    <span class="badge bg-secondary"><?php echo $reg['score']; ?>/100</span>
+                                                <?php if ($reg['ca_score'] !== null): ?>
+                                                    <span class="badge bg-secondary"><?php echo $reg['ca_score']; ?>/30</span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($reg['exam_score'] !== null): ?>
+                                                    <span class="badge bg-secondary"><?php echo $reg['exam_score']; ?>/70</span>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($reg['total_score'] !== null): ?>
+                                                    <span class="badge bg-<?php echo get_grade_color($reg['grade']); ?>">
+                                                        <?php echo $reg['total_score']; ?>/100
+                                                    </span>
                                                 <?php else: ?>
                                                     <span class="text-muted">-</span>
                                                 <?php endif; ?>
                                             </td>
                                             <td>
                                                 <?php if ($reg['grade']): ?>
-                                                    <span class="badge bg-<?php echo get_grade_color($reg['grade']); ?>">
+                                                    <span class="badge bg-<?php echo get_grade_color($reg['grade']); ?> fs-6">
                                                         <?php echo $reg['grade']; ?>
                                                     </span>
                                                 <?php else: ?>
@@ -217,7 +248,7 @@ include_once '../includes/header.php';
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <?php if ($reg['score'] !== null): ?>
+                                                <?php if ($reg['total_score'] !== null): ?>
                                                     <span class="badge bg-success">Completed</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-warning">Pending</span>
@@ -229,7 +260,7 @@ include_once '../includes/header.php';
                                                        class="btn btn-outline-info" title="View Student">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
-                                                    <?php if ($reg['score'] === null): ?>
+                                                    <?php if ($reg['total_score'] === null): ?>
                                                         <a href="../results/entry.php?course_id=<?php echo $course['course_id']; ?>&student_id=<?php echo $reg['student_id']; ?>" 
                                                            class="btn btn-outline-primary" title="Enter Result">
                                                             <i class="bi bi-pencil-square"></i>

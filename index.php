@@ -84,127 +84,186 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             --primary-dark: #008a43;
             --primary-light: #4cd488;
             --gray-light: #f8f9fa;
+            --gray-medium: #e9ecef;
             --gray-dark: #343a40;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+            --shadow-medium: rgba(0, 0, 0, 0.12);
         }
         
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #ffffff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px 0;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(0, 166, 81, 0.03) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 166, 81, 0.03) 0%, transparent 50%);
         }
         
         .login-container {
-            max-width: 450px;
+            max-width: 480px;
             width: 100%;
-            padding: 15px;
+            padding: 0 15px;
         }
         
         .card {
-            border-radius: 15px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px var(--shadow-light);
             overflow: hidden;
-            border: none;
-            backdrop-filter: blur(10px);
-            background: rgba(255, 255, 255, 0.95);
+            border: 1px solid var(--gray-medium);
+            background: #ffffff;
         }
         
         .card-header {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
             text-align: center;
-            padding: 30px 20px;
+            padding: 40px 30px 30px;
             border-bottom: none;
+            position: relative;
+        }
+        
+        .card-header::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            border-radius: 0 0 20px 20px;
         }
         
         .school-logo {
-            max-width: 80px;
-            margin-bottom: 15px;
+            max-width: 90px;
+            height: 90px;
+            margin-bottom: 20px;
             border-radius: 50%;
-            border: 3px solid rgba(255, 255, 255, 0.3);
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            object-fit: cover;
+            background: rgba(255, 255, 255, 0.1);
         }
         
         .nav-tabs {
             border-bottom: none;
             justify-content: center;
-            margin-top: 20px;
+            margin-top: 25px;
+            gap: 10px;
         }
         
         .nav-tabs .nav-link {
             border: none;
-            color: rgba(255, 255, 255, 0.7);
-            font-weight: 500;
-            padding: 12px 25px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+            padding: 12px 24px;
             border-radius: 25px;
-            position: relative;
             transition: all 0.3s ease;
-            margin: 0 5px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
         }
         
         .nav-tabs .nav-link.active {
-            color: white;
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: var(--primary-color);
+            background: white;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
         }
         
-        .nav-tabs .nav-link:hover {
+        .nav-tabs .nav-link:hover:not(.active) {
             color: white;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
         }
         
         .card-body {
             padding: 40px 30px;
+            background: #ffffff;
         }
         
         .form-control {
-            border-radius: 10px;
-            padding: 15px 20px;
+            border-radius: 12px;
+            padding: 16px 20px;
             margin-bottom: 20px;
-            border: 2px solid #e9ecef;
+            border: 2px solid var(--gray-medium);
             transition: all 0.3s ease;
             font-size: 16px;
+            background: #ffffff;
         }
         
         .form-control:focus {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.2rem rgba(0, 166, 81, 0.25);
-            transform: translateY(-2px);
+            box-shadow: 0 0 0 0.2rem rgba(0, 166, 81, 0.15);
+            transform: translateY(-1px);
+            background: #ffffff;
+        }
+        
+        .form-control::placeholder {
+            color: #6c757d;
+            opacity: 0.7;
         }
         
         .btn-primary {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             border: none;
-            border-radius: 10px;
-            padding: 15px;
+            border-radius: 12px;
+            padding: 16px 24px;
             font-weight: 600;
             transition: all 0.3s ease;
             width: 100%;
             font-size: 16px;
+            box-shadow: 0 4px 15px rgba(0, 166, 81, 0.2);
         }
         
         .btn-primary:hover, .btn-primary:focus {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0, 166, 81, 0.3);
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary-color) 100%);
+        }
+        
+        .btn-primary:active {
+            transform: translateY(0);
         }
         
         .input-group-text {
-            background: transparent;
+            background: #ffffff;
             border-right: none;
-            border: 2px solid #e9ecef;
-            border-radius: 10px 0 0 10px;
+            border: 2px solid var(--gray-medium);
+            border-radius: 12px 0 0 12px;
             color: #6c757d;
+            padding: 16px 15px;
         }
         
         .input-group .form-control {
             border-left: none;
-            border-radius: 0 10px 10px 0;
+            border-radius: 0 12px 12px 0;
             margin-bottom: 0;
+        }
+        
+        .input-group .btn-outline-secondary {
+            border: 2px solid var(--gray-medium);
+            border-left: none;
+            border-radius: 0 12px 12px 0;
+            background: #ffffff;
+            color: #6c757d;
+            padding: 16px 15px;
+        }
+        
+        .input-group .btn-outline-secondary:hover {
+            background: var(--gray-light);
+            border-color: var(--gray-medium);
+            color: var(--primary-color);
         }
         
         .input-group {
             margin-bottom: 20px;
+        }
+        
+        .input-group:focus-within .input-group-text,
+        .input-group:focus-within .btn-outline-secondary {
+            border-color: var(--primary-color);
         }
         
         .tab-content {
@@ -212,42 +271,76 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .fade-in {
-            animation: fadeIn 0.5s ease-in-out;
+            animation: fadeIn 0.4s ease-in-out;
         }
         
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { 
+                opacity: 0; 
+                transform: translateY(15px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translateY(0); 
+            }
         }
         
         .system-name {
-            font-size: 1.8rem;
+            font-size: 2rem;
             font-weight: 700;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
             text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            letter-spacing: -0.5px;
         }
         
         .system-tagline {
-            font-size: 1rem;
-            opacity: 0.9;
+            font-size: 1.1rem;
+            opacity: 0.95;
+            font-weight: 400;
         }
         
         .alert {
-            border-radius: 10px;
+            border-radius: 12px;
             border: none;
-            margin-bottom: 20px;
+            margin-bottom: 25px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 10px var(--shadow-light);
+        }
+        
+        .alert-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
         }
         
         .footer-text {
             text-align: center;
-            margin-top: 20px;
-            color: rgba(255, 255, 255, 0.8);
+            margin-top: 30px;
+            color: #6c757d;
             font-size: 0.9rem;
+            padding: 20px;
+            background: rgba(248, 249, 250, 0.8);
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
         }
         
+        /* Enhanced Mobile Responsiveness */
         @media (max-width: 576px) {
+            body {
+                padding: 10px 0;
+            }
+            
             .login-container {
-                padding: 10px;
+                padding: 0 10px;
+                max-width: 100%;
+            }
+            
+            .card {
+                border-radius: 16px;
+                margin: 0;
+            }
+            
+            .card-header {
+                padding: 30px 20px 25px;
             }
             
             .card-body {
@@ -255,13 +348,111 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             .system-name {
-                font-size: 1.5rem;
+                font-size: 1.6rem;
+            }
+            
+            .system-tagline {
+                font-size: 1rem;
             }
             
             .nav-tabs .nav-link {
-                padding: 10px 20px;
+                padding: 10px 18px;
                 font-size: 14px;
             }
+            
+            .form-control, .input-group-text, .btn-outline-secondary {
+                padding: 14px 16px;
+                font-size: 15px;
+            }
+            
+            .btn-primary {
+                padding: 14px 20px;
+                font-size: 15px;
+            }
+            
+            .school-logo {
+                max-width: 70px;
+                height: 70px;
+                margin-bottom: 15px;
+            }
+        }
+        
+        @media (max-width: 400px) {
+            .card-header {
+                padding: 25px 15px 20px;
+            }
+            
+            .card-body {
+                padding: 25px 15px;
+            }
+            
+            .system-name {
+                font-size: 1.4rem;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .nav-tabs .nav-link {
+                width: 100%;
+                text-align: center;
+            }
+        }
+        
+        /* Tablet Responsiveness */
+        @media (min-width: 577px) and (max-width: 768px) {
+            .login-container {
+                max-width: 520px;
+            }
+            
+            .card-header {
+                padding: 45px 35px 35px;
+            }
+            
+            .card-body {
+                padding: 45px 35px;
+            }
+        }
+        
+        /* Large Screen Optimization */
+        @media (min-width: 1200px) {
+            .login-container {
+                max-width: 500px;
+            }
+            
+            .card {
+                box-shadow: 0 15px 50px var(--shadow-medium);
+            }
+        }
+        
+        /* High DPI Displays */
+        @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+            .school-logo {
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
+            }
+        }
+        
+        /* Focus and Accessibility Improvements */
+        .nav-tabs .nav-link:focus,
+        .btn:focus,
+        .form-control:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+        
+        /* Loading State */
+        .btn-primary:disabled {
+            opacity: 0.8;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Smooth Transitions */
+        * {
+            transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
         }
     </style>
 </head>
@@ -306,13 +497,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person"></i></span>
-                                <input type="text" class="form-control" name="username" placeholder="Username" required 
+                                <input type="text" class="form-control" name="username" placeholder="Enter your username" required 
                                        value="<?php echo isset($_POST['username']) && $_POST['role'] == 'admin' ? htmlspecialchars($_POST['username']) : ''; ?>">
                             </div>
                             
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                                <input type="password" class="form-control" name="password" placeholder="Password" required>
+                                <input type="password" class="form-control" name="password" placeholder="Enter your password" required>
                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -331,13 +522,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-person-badge"></i></span>
-                                <input type="text" class="form-control" name="username" placeholder="Matric Number" required
+                                <input type="text" class="form-control" name="username" placeholder="Enter your matric number" required
                                        value="<?php echo isset($_POST['username']) && $_POST['role'] == 'student' ? htmlspecialchars($_POST['username']) : ''; ?>">
                             </div>
                             
                             <div class="input-group">
                                 <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                                <input type="password" class="form-control" name="password" placeholder="Password" required>
+                                <input type="password" class="form-control" name="password" placeholder="Enter your password" required>
                                 <button class="btn btn-outline-secondary" type="button" onclick="togglePassword(this)">
                                     <i class="bi bi-eye"></i>
                                 </button>
@@ -371,7 +562,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     $(targetId).addClass('fade-in');
                     setTimeout(function() {
                         $(targetId).removeClass('fade-in');
-                    }, 500);
+                    }, 400);
                 }, 150);
             });
             
@@ -389,6 +580,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     submitBtn.html(originalText);
                 }, 10000);
             });
+            
+            // Enhanced form validation
+            $('input[required]').on('blur', function() {
+                if ($(this).val().trim() === '') {
+                    $(this).addClass('is-invalid');
+                } else {
+                    $(this).removeClass('is-invalid').addClass('is-valid');
+                }
+            });
+            
+            // Auto-hide alerts
+            setTimeout(function() {
+                $('.alert').fadeOut('slow');
+            }, 8000);
         });
         
         function togglePassword(button) {
@@ -403,6 +608,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 icon.removeClass('bi-eye-slash').addClass('bi-eye');
             }
         }
+        
+        // Keyboard navigation enhancement
+        $(document).keydown(function(e) {
+            if (e.key === 'Tab') {
+                $(':focus').addClass('keyboard-focus');
+            }
+        });
+        
+        $(document).mousedown(function() {
+            $('.keyboard-focus').removeClass('keyboard-focus');
+        });
     </script>
 </body>
 </html>

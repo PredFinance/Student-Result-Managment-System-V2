@@ -3,7 +3,7 @@
 define('DB_HOST', 'localhost');
 define('DB_USER', 'root');
 define('DB_PASS', '');
-define('DB_NAME', 'lufem_srms');
+define('DB_NAME', 'lufem_school');
 
 // Application configuration
 define('APP_NAME', 'LUFEM Student Results Management System');

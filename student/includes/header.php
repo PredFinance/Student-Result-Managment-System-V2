@@ -14,6 +14,15 @@ $db->query("SELECT * FROM users WHERE user_id = :user_id");
 $db->bind(':user_id', $user_id);
 $user = $db->single();
 
+// Get student info
+$db->query("SELECT s.*, d.department_name, l.level_name
+            FROM students s
+            JOIN departments d ON s.department_id = d.department_id
+            JOIN levels l ON s.level_id = l.level_id
+            WHERE s.student_id = :student_id");
+$db->bind(':student_id', $user_id);
+$student = $db->single();
+
 // Get institution info
 $institution_id = get_institution_id();
 $db->query("SELECT * FROM institutions WHERE institution_id = :institution_id");
@@ -22,7 +31,6 @@ $institution = $db->single();
 
 // Get current page for active menu highlighting
 $current_page = basename($_SERVER['PHP_SELF']);
-$current_dir = basename(dirname($_SERVER['PHP_SELF']));
 
 // Helper function to darken color
 function darken_color($hex, $percent) {
@@ -196,7 +204,8 @@ function lighten_color($hex, $percent) {
         #sidebar-wrapper.collapsed .list-group-item .menu-text {
             display: none;
         }
-         .sidebar-divider {
+        
+        .sidebar-divider {
             border-top: 1px solid rgba(255, 255, 255, 0.1);
             margin: 10px 15px;
         }
@@ -402,47 +411,6 @@ function lighten_color($hex, $percent) {
             box-shadow: 0 4px 12px rgba(0, 166, 81, 0.3);
         }
         
-        .btn-success {
-            border-radius: 6px;
-            font-weight: 500;
-        }
-        
-        .btn-info {
-            border-radius: 6px;
-            font-weight: 500;
-        }
-        
-        .btn-warning {
-            border-radius: 6px;
-            font-weight: 500;
-        }
-        
-        .btn-danger {
-            border-radius: 6px;
-            font-weight: 500;
-        }
-        
-        /* Border Left Utilities */
-        .border-left-primary {
-            border-left: 4px solid var(--primary-color) !important;
-        }
-        
-        .border-left-success {
-            border-left: 4px solid #28a745 !important;
-        }
-        
-        .border-left-info {
-            border-left: 4px solid #17a2b8 !important;
-        }
-        
-        .border-left-warning {
-            border-left: 4px solid #ffc107 !important;
-        }
-        
-        .border-left-danger {
-            border-left: 4px solid #dc3545 !important;
-        }
-        
         /* Tables */
         .table {
             border-radius: 8px;
@@ -468,39 +436,10 @@ function lighten_color($hex, $percent) {
             box-shadow: 0 0 0 0.2rem rgba(0, 166, 81, 0.25);
         }
         
-        .form-select {
-            border-radius: 6px;
-            border: 1px solid #ddd;
-        }
-        
-        .form-select:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.2rem rgba(0, 166, 81, 0.25);
-        }
-        
         /* Alerts */
         .alert {
             border-radius: 8px;
             border: none;
-        }
-        
-        /* Sidebar Overlay for Mobile */
-        .sidebar-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 998;
-            display: none;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        
-        .sidebar-overlay.show {
-            display: block;
-            opacity: 1;
         }
         
         /* Responsive */
@@ -541,53 +480,6 @@ function lighten_color($hex, $percent) {
             }
         }
         
-        @media (max-width: 576px) {
-            .topbar {
-                padding: 0 10px;
-            }
-            
-            .main-content {
-                padding: 10px;
-            }
-            
-            .card-body {
-                padding: 15px;
-            }
-        }
-        
-        /* Loading Animation */
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Custom Scrollbar */
-        #sidebar-wrapper::-webkit-scrollbar {
-            width: 6px;
-        }
-        
-        #sidebar-wrapper::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        #sidebar-wrapper::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 3px;
-        }
-        
-        #sidebar-wrapper::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
-        }
-        
         /* Print Styles */
         @media print {
             body {
@@ -606,15 +498,6 @@ function lighten_color($hex, $percent) {
             .main-content {
                 padding: 0 !important;
             }
-            
-            .card {
-                box-shadow: none !important;
-                border: 1px solid #ddd !important;
-            }
-            
-            .card-header {
-                background-color: #f8f9fa !important;
-            }
         }
     </style>
 </head>
@@ -627,94 +510,48 @@ function lighten_color($hex, $percent) {
         </div>
         
         <div class="list-group list-group-flush">
-            <a href="<?php echo ADMIN_URL; ?>/dashboard.php" class="list-group-item <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
+            <a href="<?php echo STUDENT_URL; ?>/dashboard.php" class="list-group-item <?php echo ($current_page == 'dashboard.php') ? 'active' : ''; ?>">
                 <i class="bi bi-speedometer2"></i>
                 <span class="menu-text">Dashboard</span>
             </a>
             
             <div class="sidebar-divider"></div>
             
-            <!-- Students Section -->
-            <a href="<?php echo ADMIN_URL; ?>/students/add.php" class="list-group-item <?php echo ($current_dir == 'students' && $current_page == 'add.php') ? 'active' : ''; ?>">
-                <i class="bi bi-person-plus"></i>
-                <span class="menu-text">Add New Student</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/students/index.php" class="list-group-item <?php echo ($current_dir == 'students' && $current_page == 'index.php') ? 'active' : ''; ?>">
-                <i class="bi bi-people"></i>
-                <span class="menu-text">View Students</span>
-            </a>
-            
-            <div class="sidebar-divider"></div>
-            
-            <!-- Departments Section -->
-            <a href="<?php echo ADMIN_URL; ?>/departments/add.php" class="list-group-item <?php echo ($current_dir == 'departments' && $current_page == 'add.php') ? 'active' : ''; ?>">
-                <i class="bi bi-building-add"></i>
-                <span class="menu-text">Add Department</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/departments/index.php" class="list-group-item <?php echo ($current_dir == 'departments' && $current_page == 'index.php') ? 'active' : ''; ?>">
-                <i class="bi bi-building"></i>
-                <span class="menu-text">View Departments</span>
-            </a>
-            
-            <div class="sidebar-divider"></div>
-            
-            <!-- Courses Section -->
-            <a href="<?php echo ADMIN_URL; ?>/courses/add.php" class="list-group-item <?php echo ($current_dir == 'courses' && $current_page == 'add.php') ? 'active' : ''; ?>">
+            <!-- Course Registration -->
+            <a href="<?php echo STUDENT_URL; ?>/register-courses.php" class="list-group-item <?php echo ($current_page == 'register-courses.php') ? 'active' : ''; ?>">
                 <i class="bi bi-journal-plus"></i>
-                <span class="menu-text">Add Course</span>
+                <span class="menu-text">Register Courses</span>
             </a>
             
-            <a href="<?php echo ADMIN_URL; ?>/courses/index.php" class="list-group-item <?php echo ($current_dir == 'courses' && $current_page == 'index.php') ? 'active' : ''; ?>">
+            <a href="<?php echo STUDENT_URL; ?>/my-courses.php" class="list-group-item <?php echo ($current_page == 'my-courses.php') ? 'active' : ''; ?>">
                 <i class="bi bi-journal-bookmark"></i>
-                <span class="menu-text">View Courses</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/courses/registration.php" class="list-group-item <?php echo ($current_dir == 'courses' && $current_page == 'registration.php') ? 'active' : ''; ?>">
-                <i class="bi bi-journal-check"></i>
-                <span class="menu-text">Course Registration</span>
+                <span class="menu-text">My Courses</span>
             </a>
             
             <div class="sidebar-divider"></div>
             
-            <!-- Results Section -->
-            <a href="<?php echo ADMIN_URL; ?>/results/entry.php" class="list-group-item <?php echo ($current_dir == 'results' && $current_page == 'entry.php') ? 'active' : ''; ?>">
-                <i class="bi bi-pencil-square"></i>
-                <span class="menu-text">Enter Results</span>
+            <!-- Results -->
+            <a href="<?php echo STUDENT_URL; ?>/results.php" class="list-group-item <?php echo ($current_page == 'results.php') ? 'active' : ''; ?>">
+                <i class="bi bi-clipboard-data"></i>
+                <span class="menu-text">My Results</span>
             </a>
             
-            <a href="<?php echo ADMIN_URL; ?>/results/index.php" class="list-group-item <?php echo ($current_dir == 'results' && $current_page == 'index.php') ? 'active' : ''; ?>">
-                <i class="bi bi-file-earmark-text"></i>
-                <span class="menu-text">View Results</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/results/transcript.php" class="list-group-item <?php echo ($current_dir == 'results' && $current_page == 'transcript.php') ? 'active' : ''; ?>">
+            <a href="<?php echo STUDENT_URL; ?>/transcript.php" class="list-group-item <?php echo ($current_page == 'transcript.php') ? 'active' : ''; ?>">
                 <i class="bi bi-file-earmark-pdf"></i>
-                <span class="menu-text">Generate Transcript</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/results/analytics.php" class="list-group-item <?php echo ($current_dir == 'results' && $current_page == 'analytics.php') ? 'active' : ''; ?>">
-                <i class="bi bi-bar-chart"></i>
-                <span class="menu-text">Result Analytics</span>
+                <span class="menu-text">Transcript</span>
             </a>
             
             <div class="sidebar-divider"></div>
             
-            <!-- Settings Section -->
-            <a href="<?php echo ADMIN_URL; ?>/settings/academic.php" class="list-group-item <?php echo ($current_dir == 'settings' && $current_page == 'academic.php') ? 'active' : ''; ?>">
-                <i class="bi bi-calendar-check"></i>
-                <span class="menu-text">Academic Settings</span>
+            <!-- Profile -->
+            <a href="<?php echo STUDENT_URL; ?>/profile.php" class="list-group-item <?php echo ($current_page == 'profile.php') ? 'active' : ''; ?>">
+                <i class="bi bi-person-gear"></i>
+                <span class="menu-text">My Profile</span>
             </a>
             
-            <a href="<?php echo ADMIN_URL; ?>/settings/grades.php" class="list-group-item <?php echo ($current_dir == 'settings' && $current_page == 'grades.php') ? 'active' : ''; ?>">
-                <i class="bi bi-award"></i>
-                <span class="menu-text">Grade Settings</span>
-            </a>
-            
-            <a href="<?php echo ADMIN_URL; ?>/settings/system.php" class="list-group-item <?php echo ($current_dir == 'settings' && $current_page == 'system.php') ? 'active' : ''; ?>">
-                <i class="bi bi-gear"></i>
-                <span class="menu-text">System Settings</span>
+            <a href="<?php echo STUDENT_URL; ?>/change-password.php" class="list-group-item <?php echo ($current_page == 'change-password.php') ? 'active' : ''; ?>">
+                <i class="bi bi-shield-lock"></i>
+                <span class="menu-text">Change Password</span>
             </a>
         </div>
     </div>
@@ -732,7 +569,7 @@ function lighten_color($hex, $percent) {
                 </button>
                 
                 <div class="breadcrumb-nav ms-3">
-                    <a href="<?php echo ADMIN_URL; ?>/dashboard.php">
+                    <a href="<?php echo STUDENT_URL; ?>/dashboard.php">
                         <i class="bi bi-house"></i> Dashboard
                     </a>
                     <?php if (isset($breadcrumb)): ?>
@@ -745,23 +582,23 @@ function lighten_color($hex, $percent) {
             <div class="user-dropdown">
                 <button class="user-dropdown-toggle" id="userDropdownToggle">
                     <div class="user-avatar">
-                        <?php echo strtoupper(substr($user['full_name'], 0, 1)); ?>
+                        <?php echo strtoupper(substr($student['first_name'], 0, 1)); ?>
                     </div>
                     <div class="user-info d-none d-md-block">
-                        <div class="user-name"><?php echo $user['full_name']; ?></div>
-                        <div class="user-role text-muted" style="font-size: 0.8rem;"><?php echo ucfirst($user['role']); ?></div>
+                        <div class="user-name"><?php echo $student['first_name'] . ' ' . $student['last_name']; ?></div>
+                        <div class="user-role text-muted" style="font-size: 0.8rem;"><?php echo $student['matric_number']; ?></div>
                     </div>
                     <i class="bi bi-chevron-down ms-2"></i>
                 </button>
                 
                 <div class="user-dropdown-menu" id="userDropdownMenu">
-                    <a href="<?php echo ADMIN_URL; ?>/profile.php" class="user-dropdown-item">
+                    <a href="<?php echo STUDENT_URL; ?>/profile.php" class="user-dropdown-item">
                         <i class="bi bi-person"></i>
                         <span>My Profile</span>
                     </a>
-                    <a href="<?php echo ADMIN_URL; ?>/settings/account.php" class="user-dropdown-item">
-                        <i class="bi bi-gear"></i>
-                        <span>Account Settings</span>
+                    <a href="<?php echo STUDENT_URL; ?>/change-password.php" class="user-dropdown-item">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>Change Password</span>
                     </a>
                     <div class="user-dropdown-divider"></div>
                     <a href="<?php echo BASE_URL; ?>/logout.php" class="user-dropdown-item">
