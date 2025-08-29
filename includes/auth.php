@@ -43,8 +43,16 @@ class Auth {
             $_SESSION['role'] = $user['role'];
             $_SESSION['institution_id'] = $user['institution_id'];
             
-            error_log("Auth::login - Session created for user: " . $user['username']);
-            
+            // If the user is a student, get their student_id
+            if ($user['role'] === 'student') {
+                $this->db->query("SELECT student_id FROM students WHERE user_id = :user_id");
+                $this->db->bind(':user_id', $user['user_id']);
+                $student_data = $this->db->single();
+                if ($student_data) {
+                    $_SESSION['student_id'] = $student_data['student_id'];
+                }
+            }
+
             // Update last login
             $this->db->query("UPDATE users SET last_login = NOW() WHERE user_id = :user_id");
             $this->db->bind(':user_id', $user['user_id']);
