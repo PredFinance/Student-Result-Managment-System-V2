@@ -20,42 +20,54 @@ $institution_id = get_institution_id();
 $current_session = get_current_session($institution_id);
 $current_semester = get_current_semester($institution_id);
 
-// Get student statistics
-$db->query("SELECT 
-    (SELECT COUNT(*) FROM course_registrations cr 
-     WHERE cr.student_id = :student_id AND cr.session_id = :session_id AND cr.semester_id = :semester_id) as current_courses,
-    (SELECT COUNT(*) FROM course_registrations cr 
-     WHERE cr.student_id = :student_id) as total_courses,
-    (SELECT COALESCE(AVG(r.grade_point), 0) FROM results r 
-     JOIN course_registrations cr ON r.registration_id = cr.registration_id 
-     WHERE cr.student_id = :student_id AND r.grade_point > 0) as cgpa,
-    (SELECT COUNT(*) FROM results r 
-     JOIN course_registrations cr ON r.registration_id = cr.registration_id 
-     WHERE cr.student_id = :student_id AND r.total_score >= 40) as passed_courses,
-    (SELECT COUNT(*) FROM results r 
-     JOIN course_registrations cr ON r.registration_id = cr.registration_id 
-     WHERE cr.student_id = :student_id AND r.total_score < 40 AND r.total_score > 0) as failed_courses");
+// Get student statistics and current courses
+if ($current_session && $current_semester) {
+    $db->query("SELECT
+        (SELECT COUNT(*) FROM course_registrations cr
+         WHERE cr.student_id = :student_id AND cr.session_id = :session_id AND cr.semester_id = :semester_id) as current_courses,
+        (SELECT COUNT(*) FROM course_registrations cr
+         WHERE cr.student_id = :student_id) as total_courses,
+        (SELECT COALESCE(AVG(r.grade_point), 0) FROM results r
+         JOIN course_registrations cr ON r.registration_id = cr.registration_id
+         WHERE cr.student_id = :student_id AND r.grade_point > 0) as cgpa,
+        (SELECT COUNT(*) FROM results r
+         JOIN course_registrations cr ON r.registration_id = cr.registration_id
+         WHERE cr.student_id = :student_id AND r.total_score >= 40) as passed_courses,
+        (SELECT COUNT(*) FROM results r
+         JOIN course_registrations cr ON r.registration_id = cr.registration_id
+         WHERE cr.student_id = :student_id AND r.total_score < 40 AND r.total_score > 0) as failed_courses");
 
-$db->bind(':student_id', $student_id);
-$db->bind(':session_id', $current_session['session_id'] ?? 0);
-$db->bind(':semester_id', $current_semester['semester_id'] ?? 0);
-$stats = $db->single();
+    $db->bind(':student_id', $student_id);
+    $db->bind(':session_id', $current_session['session_id']);
+    $db->bind(':semester_id', $current_semester['semester_id']);
+    $stats = $db->single();
 
-// Get current semester courses
-$db->query("SELECT c.course_code, c.course_title, c.credit_units,
-            r.ca_score, r.exam_score, r.total_score, r.grade, r.grade_point
-            FROM course_registrations cr
-            JOIN courses c ON cr.course_id = c.course_id
-            LEFT JOIN results r ON cr.registration_id = r.registration_id
-            WHERE cr.student_id = :student_id 
-            AND cr.session_id = :session_id 
-            AND cr.semester_id = :semester_id
-            ORDER BY c.course_code");
+    // Get current semester courses
+    $db->query("SELECT c.course_code, c.course_title, c.credit_units,
+                r.ca_score, r.exam_score, r.total_score, r.grade, r.grade_point
+                FROM course_registrations cr
+                JOIN courses c ON cr.course_id = c.course_id
+                LEFT JOIN results r ON cr.registration_id = r.registration_id
+                WHERE cr.student_id = :student_id
+                AND cr.session_id = :session_id
+                AND cr.semester_id = :semester_id
+                ORDER BY c.course_code");
 
-$db->bind(':student_id', $student_id);
-$db->bind(':session_id', $current_session['session_id'] ?? 0);
-$db->bind(':semester_id', $current_semester['semester_id'] ?? 0);
-$current_courses = $db->resultSet();
+    $db->bind(':student_id', $student_id);
+    $db->bind(':session_id', $current_session['session_id']);
+    $db->bind(':semester_id', $current_semester['semester_id']);
+    $current_courses = $db->resultSet();
+} else {
+    // Handle case where there is no current session or semester
+    $stats = [
+        'current_courses' => 0,
+        'total_courses' => 0,
+        'cgpa' => 0.00,
+        'passed_courses' => 0,
+        'failed_courses' => 0
+    ];
+    $current_courses = [];
+}
 
 // Get recent results (last 5)
 $db->query("SELECT c.course_code, c.course_title, r.total_score, r.grade, r.grade_point,
