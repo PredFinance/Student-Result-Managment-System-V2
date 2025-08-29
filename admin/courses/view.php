@@ -44,7 +44,7 @@ $db->query("SELECT cr.*, s.first_name, s.last_name, s.matric_number,
             r.ca_score, r.exam_score, r.total_score, r.grade, r.grade_point
             FROM course_registrations cr
             JOIN students s ON cr.student_id = s.student_id
-            JOIN academic_sessions sess ON cr.session_id = sess.session_id
+            JOIN sessions sess ON cr.session_id = sess.session_id
             JOIN semesters sem ON cr.semester_id = sem.semester_id
             LEFT JOIN results r ON cr.registration_id = r.registration_id
             WHERE cr.course_id = :course_id

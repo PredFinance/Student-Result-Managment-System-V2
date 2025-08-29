@@ -44,7 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Attempt login with role validation
         if ($auth->login($username, $password, $role)) {
             start_session();
-            if ($role == 'student') {
+            $user_role = $_SESSION['role'];
+            
+            // Debug information
+            error_log("User role from session: $user_role, Selected role: $role");
+            
+            // Role validation
+            if ($role == 'student' && $user_role == 'student') {
                 redirect(STUDENT_URL . '/dashboard.php');
             } else {
                 redirect(ADMIN_URL . '/dashboard.php');

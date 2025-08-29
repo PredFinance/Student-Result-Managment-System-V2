@@ -63,7 +63,7 @@ $db->query("SELECT c.course_code, c.course_title, r.total_score, r.grade, r.grad
             FROM results r
             JOIN course_registrations cr ON r.registration_id = cr.registration_id
             JOIN courses c ON cr.course_id = c.course_id
-            LEFT JOIN academic_sessions s ON cr.session_id = s.session_id
+            LEFT JOIN sessions s ON cr.session_id = s.session_id
             LEFT JOIN semesters sem ON cr.semester_id = sem.semester_id
             WHERE cr.student_id = :student_id
             ORDER BY r.created_at DESC

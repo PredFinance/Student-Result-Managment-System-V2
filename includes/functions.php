@@ -93,37 +93,20 @@ function get_current_session($institution_id = null) {
     
     $db = new Database();
     
-    // First try academic_sessions table
-    $db->query("SELECT * FROM academic_sessions 
+    // Get the current session from the single sessions table
+    $db->query("SELECT * FROM sessions
                 WHERE institution_id = :institution_id AND is_current = 1 
                 ORDER BY session_id DESC LIMIT 1");
     $db->bind(':institution_id', $institution_id);
     $session = $db->single();
     
-    // If no current session found in academic_sessions, try sessions table
+    // If no current session is explicitly set, get the most recent one
     if (!$session) {
         $db->query("SELECT * FROM sessions 
-                    WHERE institution_id = :institution_id AND is_current = 1 
-                    ORDER BY session_id DESC LIMIT 1");
-        $db->bind(':institution_id', $institution_id);
-        $session = $db->single();
-    }
-    
-    // If still no current session, get the most recent one
-    if (!$session) {
-        $db->query("SELECT * FROM academic_sessions 
                     WHERE institution_id = :institution_id 
                     ORDER BY session_id DESC LIMIT 1");
         $db->bind(':institution_id', $institution_id);
         $session = $db->single();
-        
-        if (!$session) {
-            $db->query("SELECT * FROM sessions 
-                        WHERE institution_id = :institution_id 
-                        ORDER BY session_id DESC LIMIT 1");
-            $db->bind(':institution_id', $institution_id);
-            $session = $db->single();
-        }
     }
     
     return $session;
@@ -162,21 +145,12 @@ function get_all_sessions($institution_id = null) {
     
     $db = new Database();
     
-    // First try academic_sessions
-    $db->query("SELECT session_id, session_name FROM academic_sessions 
+    // Get all sessions from the single sessions table
+    $db->query("SELECT session_id, session_name FROM sessions
                 WHERE institution_id = :institution_id 
                 ORDER BY session_name DESC");
     $db->bind(':institution_id', $institution_id);
     $sessions = $db->resultSet();
-    
-    // If empty, try sessions table
-    if (empty($sessions)) {
-        $db->query("SELECT session_id, session_name FROM sessions 
-                    WHERE institution_id = :institution_id 
-                    ORDER BY session_name DESC");
-        $db->bind(':institution_id', $institution_id);
-        $sessions = $db->resultSet();
-    }
     
     return $sessions;
 }
