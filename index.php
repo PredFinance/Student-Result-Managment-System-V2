@@ -23,9 +23,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
     $role = $_POST['role'];
     
-    // Debug information (remove after fixing)
-    error_log("Login attempt - Username: $username, Role: $role");
-    
     // Validate input
     if (empty($username)) {
         $errors[] = 'Username is required';
@@ -44,19 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // Attempt login with role validation
         if ($auth->login($username, $password, $role)) {
             start_session();
-            $user_role = $_SESSION['role'];
-            
-            // Debug information
-            error_log("User role from session: $user_role, Selected role: $role");
-            
-            // Role validation
-            if ($role == 'student' && $user_role == 'student') {
+            if ($_SESSION['role'] === 'student') {
                 redirect(STUDENT_URL . '/dashboard.php');
             } else {
                 redirect(ADMIN_URL . '/dashboard.php');
             }
         } else {
-            $errors[] = 'Invalid username, password, or role';
+            $errors[] = 'Invalid credentials or role mismatch.';
         }
     }
 }

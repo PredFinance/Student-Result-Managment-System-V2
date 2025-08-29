@@ -14,36 +14,22 @@ class Auth {
         // Clean input
         $username = clean_input($username);
         
-        // Debug logging
-        error_log("Auth::login - Username: $username, Role: $role");
-        
         // Check if username exists and is active
         $this->db->query("SELECT * FROM users WHERE username = :username AND is_active = 1");
         $this->db->bind(':username', $username);
         
         $user = $this->db->single();
         
-        // Debug logging
-        if ($user) {
-            error_log("Auth::login - User found: " . $user['full_name'] . ", Role: " . $user['role']);
-        } else {
-            error_log("Auth::login - User not found or inactive");
-        }
-        
         // If user exists, verify password
         if ($user && password_verify($password, $user['password'])) {
-            error_log("Auth::login - Password verified successfully");
-            
             // If role is specified, check if user has that role
             if ($role) {
-                if ($role == 'student' && $user['role'] != 'student') {
-                    error_log("Auth::login - Role mismatch: Expected student, got " . $user['role']);
-                    return false;
+                if ($role === 'student' && $user['role'] !== 'student') {
+                    return false; // Role mismatch
                 }
                 
-                if ($role == 'admin' && !in_array($user['role'], ['admin', 'super_admin'])) {
-                    error_log("Auth::login - Role mismatch: Expected admin, got " . $user['role']);
-                    return false;
+                if ($role === 'admin' && !in_array($user['role'], ['admin', 'super_admin'])) {
+                    return false; // Role mismatch
                 }
             }
             
@@ -57,8 +43,6 @@ class Auth {
             $_SESSION['role'] = $user['role'];
             $_SESSION['institution_id'] = $user['institution_id'];
             
-            error_log("Auth::login - Session created for user: " . $user['username']);
-            
             // Update last login
             $this->db->query("UPDATE users SET last_login = NOW() WHERE user_id = :user_id");
             $this->db->bind(':user_id', $user['user_id']);
@@ -67,7 +51,6 @@ class Auth {
             return true;
         }
         
-        error_log("Auth::login - Login failed for username: $username");
         return false;
     }
     
@@ -139,23 +122,35 @@ class Auth {
     
     // Update user
     public function update_user($user_id, $data) {
+        // Whitelist of allowed fields to update
+        $allowed_fields = ['username', 'password', 'email', 'full_name', 'role', 'is_active'];
+
         // Start query
         $query = "UPDATE users SET ";
-        $params = [];
+        $params = [':user_id' => $user_id];
+        $set_parts = [];
         
         // Add fields to update
         foreach ($data as $key => $value) {
-            if ($key == 'password') {
-                $value = password_hash($value, PASSWORD_DEFAULT, ['cost' => HASH_COST]);
+            // Check if the field is allowed
+            if (in_array($key, $allowed_fields)) {
+                // Hash password if it's being updated
+                if ($key == 'password') {
+                    $value = password_hash($value, PASSWORD_DEFAULT, ['cost' => HASH_COST]);
+                }
+
+                $set_parts[] = "$key = :$key";
+                $params[":$key"] = $value;
             }
-            
-            $query .= "$key = :$key, ";
-            $params[":$key"] = $value;
+        }
+
+        // If no valid fields to update, return false
+        if (empty($set_parts)) {
+            return false;
         }
         
         // Add updated_at
-        $query .= "updated_at = NOW() WHERE user_id = :user_id";
-        $params[':user_id'] = $user_id;
+        $query .= implode(', ', $set_parts) . ", updated_at = NOW() WHERE user_id = :user_id";
         
         // Execute query
         $this->db->query($query);
