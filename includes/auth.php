@@ -43,13 +43,27 @@ class Auth {
             $_SESSION['role'] = $user['role'];
             $_SESSION['institution_id'] = $user['institution_id'];
             
-            // If the user is a student, get their student_id
+            // If the user is a student, get their full details
             if ($user['role'] === 'student') {
-                $this->db->query("SELECT student_id FROM students WHERE user_id = :user_id");
+                $this->db->query("SELECT s.student_id, s.matric_number, d.department_name, l.level_name
+                                  FROM students s
+                                  JOIN departments d ON s.department_id = d.department_id
+                                  JOIN levels l ON s.level_id = l.level_id
+                                  WHERE s.user_id = :user_id");
                 $this->db->bind(':user_id', $user['user_id']);
                 $student_data = $this->db->single();
+
                 if ($student_data) {
+                    // Populate session with all student-specific data
                     $_SESSION['student_id'] = $student_data['student_id'];
+                    $_SESSION['matric_number'] = $student_data['matric_number'];
+                    $_SESSION['department_name'] = $student_data['department_name'];
+                    $_SESSION['level_name'] = $student_data['level_name'];
+                } else {
+                    // Data inconsistency: a user with 'student' role has no student record.
+                    // Log this error and prevent login.
+                    error_log("Data inconsistency for user_id: " . $user['user_id'] . ". Student record not found.");
+                    return false;
                 }
             }
 
