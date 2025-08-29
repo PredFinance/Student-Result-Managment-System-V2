@@ -42,7 +42,7 @@ if (!$student) {
 // Get student's course registrations
 $db->query("SELECT cr.*, c.course_code, c.course_title, c.credit_units,
             sess.session_name, sem.semester_name,
-            r.score, r.grade, r.grade_point
+            r.ca_score, r.exam_score, r.total_score, r.grade, r.grade_point
             FROM course_registrations cr
             JOIN courses c ON cr.course_id = c.course_id
             JOIN sessions sess ON cr.session_id = sess.session_id
@@ -196,8 +196,8 @@ include_once '../includes/header.php';
                                                 <span class="badge bg-info"><?php echo $reg['credit_units']; ?></span>
                                             </td>
                                             <td>
-                                                <?php if ($reg['score'] !== null): ?>
-                                                    <span class="badge bg-secondary"><?php echo $reg['score']; ?>/100</span>
+                                                <?php if ($reg['total_score'] !== null): ?>
+                                                    <span class="badge bg-secondary"><?php echo $reg['total_score']; ?>/100</span>
                                                 <?php else: ?>
                                                     <span class="text-muted">-</span>
                                                 <?php endif; ?>
@@ -212,7 +212,7 @@ include_once '../includes/header.php';
                                                 <?php endif; ?>
                                             </td>
                                             <td>
-                                                <?php if ($reg['score'] !== null): ?>
+                                                <?php if ($reg['total_score'] !== null): ?>
                                                     <span class="badge bg-success">Completed</span>
                                                 <?php else: ?>
                                                     <span class="badge bg-warning">Pending</span>
