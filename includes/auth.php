@@ -43,6 +43,8 @@ class Auth {
             $_SESSION['role'] = $user['role'];
             $_SESSION['institution_id'] = $user['institution_id'];
             
+            error_log("Auth::login - Session created for user: " . $user['username']);
+            
             // Update last login
             $this->db->query("UPDATE users SET last_login = NOW() WHERE user_id = :user_id");
             $this->db->bind(':user_id', $user['user_id']);
