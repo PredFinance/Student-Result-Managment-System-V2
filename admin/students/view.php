@@ -42,7 +42,7 @@ if (!$student) {
 // Get student's course registrations
 $db->query("SELECT cr.*, c.course_code, c.course_title, c.credit_units,
             sess.session_name, sem.semester_name,
-            r.score, r.grade, r.grade_point
+            r.total_score AS score, r.grade, r.grade_point
             FROM course_registrations cr
             JOIN courses c ON cr.course_id = c.course_id
             JOIN sessions sess ON cr.session_id = sess.session_id
