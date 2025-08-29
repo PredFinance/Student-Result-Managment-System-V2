@@ -41,27 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     // If no errors, attempt login
     if (empty($errors)) {
-        // Try login without role restriction first
-        if ($auth->login($username, $password)) {
-            // Check if the logged-in user's role matches the selected role
+        // Attempt login with role validation
+        if ($auth->login($username, $password, $role)) {
             start_session();
-            $user_role = $_SESSION['role'];
-            
-            // Debug information
-            error_log("User role from session: $user_role, Selected role: $role");
-            
-            // Role validation
-            if ($role == 'student' && $user_role == 'student') {
+            if ($role == 'student') {
                 redirect(STUDENT_URL . '/dashboard.php');
-            } elseif ($role == 'admin' && in_array($user_role, ['admin', 'super_admin'])) {
-                redirect(ADMIN_URL . '/dashboard.php');
             } else {
-                // Role mismatch
-                $auth->logout();
-                $errors[] = 'Invalid role selected for this account';
+                redirect(ADMIN_URL . '/dashboard.php');
             }
         } else {
-            $errors[] = 'Invalid username or password';
+            $errors[] = 'Invalid username, password, or role';
         }
     }
 }
