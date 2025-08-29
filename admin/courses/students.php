@@ -43,27 +43,14 @@ if (!$course) {
 $session_filter = isset($_GET['session']) ? clean_input($_GET['session']) : '';
 $semester_filter = isset($_GET['semester']) ? clean_input($_GET['semester']) : '';
 
-// Get sessions and semesters for filters - FIXED: Use both academic_sessions and sessions tables
-$sessions = [];
-// Try academic_sessions first
+// Get sessions for filters
 $db->query("SELECT DISTINCT sess.session_id, sess.session_name
             FROM course_registrations cr
-            JOIN academic_sessions sess ON cr.session_id = sess.session_id
+            JOIN sessions sess ON cr.session_id = sess.session_id
             WHERE cr.course_id = :course_id
             ORDER BY sess.session_name DESC");
 $db->bind(':course_id', $course_id);
 $sessions = $db->resultSet();
-
-// If no results, try sessions table
-if (empty($sessions)) {
-    $db->query("SELECT DISTINCT sess.session_id, sess.session_name
-                FROM course_registrations cr
-                JOIN sessions sess ON cr.session_id = sess.session_id
-                WHERE cr.course_id = :course_id
-                ORDER BY sess.session_name DESC");
-    $db->bind(':course_id', $course_id);
-    $sessions = $db->resultSet();
-}
 
 $db->query("SELECT DISTINCT sem.semester_id, sem.semester_name
             FROM course_registrations cr
@@ -73,14 +60,13 @@ $db->query("SELECT DISTINCT sem.semester_id, sem.semester_name
 $db->bind(':course_id', $course_id);
 $semesters = $db->resultSet();
 
-// Build query with filters - FIXED: Use proper table joins
+// Build query with filters
 $query = "SELECT cr.*, s.first_name, s.last_name, s.matric_number,
           sess.session_name, sem.semester_name, l.level_name,
           r.score, r.grade, r.grade_point
           FROM course_registrations cr
           JOIN students s ON cr.student_id = s.student_id
-          LEFT JOIN academic_sessions sess ON cr.session_id = sess.session_id
-          LEFT JOIN sessions sess2 ON (cr.session_id = sess2.session_id AND sess.session_id IS NULL)
+          JOIN sessions sess ON cr.session_id = sess.session_id
           JOIN semesters sem ON cr.semester_id = sem.semester_id
           JOIN levels l ON s.level_id = l.level_id
           LEFT JOIN results r ON cr.registration_id = r.registration_id
@@ -98,7 +84,7 @@ if (!empty($semester_filter)) {
     $params[':semester_filter'] = $semester_filter;
 }
 
-$query .= " ORDER BY COALESCE(sess.session_name, sess2.session_name) DESC, sem.semester_id, s.first_name, s.last_name";
+$query .= " ORDER BY sess.session_name DESC, sem.semester_id, s.first_name, s.last_name";
 
 $db->query($query);
 foreach ($params as $param => $value) {

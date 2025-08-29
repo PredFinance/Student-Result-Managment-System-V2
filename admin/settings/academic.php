@@ -28,12 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             // If this is set as current, unset others
             if ($is_current) {
-                $db->query("UPDATE academic_sessions SET is_current = 0 WHERE institution_id = :institution_id");
+                $db->query("UPDATE sessions SET is_current = 0 WHERE institution_id = :institution_id");
                 $db->bind(':institution_id', $institution_id);
                 $db->execute();
             }
             
-            $db->query("INSERT INTO academic_sessions (institution_id, session_name, start_date, end_date, is_current) 
+            $db->query("INSERT INTO sessions (institution_id, session_name, start_date, end_date, is_current)
                         VALUES (:institution_id, :session_name, :start_date, :end_date, :is_current)");
             $db->bind(':institution_id', $institution_id);
             $db->bind(':session_name', $session_name);
@@ -77,11 +77,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($_POST['action'] == 'set_current_session') {
             $session_id = clean_input($_POST['session_id']);
             
-            $db->query("UPDATE academic_sessions SET is_current = 0 WHERE institution_id = :institution_id");
+            $db->query("UPDATE sessions SET is_current = 0 WHERE institution_id = :institution_id");
             $db->bind(':institution_id', $institution_id);
             $db->execute();
             
-            $db->query("UPDATE academic_sessions SET is_current = 1 WHERE session_id = :session_id");
+            $db->query("UPDATE sessions SET is_current = 1 WHERE session_id = :session_id");
             $db->bind(':session_id', $session_id);
             
             if ($db->execute()) {
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     redirect($_SERVER['PHP_SELF']);
 }
 
-// Get sessions - FIXED: Use academic_sessions table
+// Get sessions
 $sessions = get_all_sessions();
 
 // Get semesters - FIXED: Remove semester_order reference

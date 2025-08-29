@@ -50,7 +50,7 @@ if ($selected_session_id && $selected_semester_id) {
                 FROM course_registrations cr
                 JOIN courses c ON cr.course_id = c.course_id
                 JOIN results r ON cr.registration_id = r.registration_id
-                JOIN academic_sessions sess ON cr.session_id = sess.session_id
+                JOIN sessions sess ON cr.session_id = sess.session_id
                 JOIN semesters sem ON cr.semester_id = sem.semester_id
                 WHERE cr.student_id = :student_id 
                 AND cr.session_id = :session_id 

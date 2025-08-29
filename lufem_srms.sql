@@ -90,7 +90,8 @@ CREATE TABLE `levels` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Academic Sessions Table
-CREATE TABLE `academic_sessions` (
+-- Sessions Table (formerly Academic Sessions)
+CREATE TABLE `sessions` (
   `session_id` int(11) NOT NULL AUTO_INCREMENT,
   `institution_id` int(11) NOT NULL,
   `session_name` varchar(50) NOT NULL,
@@ -105,19 +106,6 @@ CREATE TABLE `academic_sessions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Alternative Sessions Table (for compatibility)
-CREATE TABLE `sessions` (
-  `session_id` int(11) NOT NULL AUTO_INCREMENT,
-  `institution_id` int(11) NOT NULL,
-  `session_name` varchar(50) NOT NULL,
-  `start_date` date,
-  `end_date` date,
-  `is_current` tinyint(1) DEFAULT 0,
-  `is_active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`session_id`),
-  KEY `institution_id` (`institution_id`),
-  FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Semesters Table
 CREATE TABLE `semesters` (
@@ -166,8 +154,8 @@ CREATE TABLE `students` (
   KEY `level_id` (`level_id`),
   FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE,
   FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
-  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`),
-  FOREIGN KEY (`level_id`) REFERENCES `levels` (`level_id`)
+  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`level_id`) REFERENCES `levels` (`level_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -190,7 +178,7 @@ CREATE TABLE `courses` (
   KEY `institution_id` (`institution_id`),
   KEY `department_id` (`department_id`),
   FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`)
+  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -216,10 +204,10 @@ CREATE TABLE `course_structures` (
   KEY `semester_id` (`semester_id`),
   FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE,
   FOREIGN KEY (`course_id`) REFERENCES `courses` (`course_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`),
-  FOREIGN KEY (`level_id`) REFERENCES `levels` (`level_id`),
-  FOREIGN KEY (`session_id`) REFERENCES `academic_sessions` (`session_id`),
-  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`)
+  FOREIGN KEY (`department_id`) REFERENCES `departments` (`department_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`level_id`) REFERENCES `levels` (`level_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`session_id`) REFERENCES `sessions` (`session_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -245,8 +233,8 @@ CREATE TABLE `course_registrations` (
   FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE,
   FOREIGN KEY (`student_id`) REFERENCES `students` (`student_id`) ON DELETE CASCADE,
   FOREIGN KEY (`course_id`) REFERENCES `courses` (`course_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`session_id`) REFERENCES `academic_sessions` (`session_id`),
-  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`)
+  FOREIGN KEY (`session_id`) REFERENCES `sessions` (`session_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -271,8 +259,8 @@ CREATE TABLE `results` (
   KEY `entered_by` (`entered_by`),
   KEY `approved_by` (`approved_by`),
   FOREIGN KEY (`registration_id`) REFERENCES `course_registrations` (`registration_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`entered_by`) REFERENCES `users` (`user_id`),
-  FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`)
+  FOREIGN KEY (`entered_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE,
+  FOREIGN KEY (`approved_by`) REFERENCES `users` (`user_id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -299,8 +287,8 @@ CREATE TABLE `semester_gpas` (
   KEY `semester_id` (`semester_id`),
   FOREIGN KEY (`institution_id`) REFERENCES `institutions` (`institution_id`) ON DELETE CASCADE,
   FOREIGN KEY (`student_id`) REFERENCES `students` (`student_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`session_id`) REFERENCES `academic_sessions` (`session_id`),
-  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`)
+  FOREIGN KEY (`session_id`) REFERENCES `sessions` (`session_id`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  FOREIGN KEY (`semester_id`) REFERENCES `semesters` (`semester_id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Cumulative GPAs
@@ -386,14 +374,12 @@ INSERT INTO `levels` (`institution_id`, `level_name`, `level_order`) VALUES
 (1, '400 Level', 4);
 
 -- Insert Academic Sessions
-INSERT INTO `academic_sessions` (`institution_id`, `session_name`, `start_date`, `end_date`, `is_current`) VALUES
+-- Insert Sessions
+INSERT INTO `sessions` (`institution_id`, `session_name`, `start_date`, `end_date`, `is_current`) VALUES
 (1, '2023/2024', '2023-09-01', '2024-08-31', 1),
 (1, '2024/2025', '2024-09-01', '2025-08-31', 0);
 
 -- Insert Sessions (for compatibility)
-INSERT INTO `sessions` (`institution_id`, `session_name`, `start_date`, `end_date`, `is_current`) VALUES
-(1, '2023/2024', '2023-09-01', '2024-08-31', 1),
-(1, '2024/2025', '2024-09-01', '2025-08-31', 0);
 
 -- Insert Semesters
 INSERT INTO `semesters` (`institution_id`, `semester_name`, `semester_order`, `is_current`) VALUES
@@ -463,6 +449,7 @@ COMMIT;
 -- =====================================================
 -- INDEXES FOR PERFORMANCE
 -- =====================================================
+CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_students_matric ON students(matric_number);
 CREATE INDEX idx_students_department ON students(department_id);
 CREATE INDEX idx_courses_code ON courses(course_code);
@@ -499,7 +486,7 @@ FROM students s
 JOIN departments d ON s.department_id = d.department_id
 JOIN course_registrations cr ON s.student_id = cr.student_id
 JOIN courses c ON cr.course_id = c.course_id
-JOIN academic_sessions sess ON cr.session_id = sess.session_id
+JOIN sessions sess ON cr.session_id = sess.session_id
 JOIN semesters sem ON cr.semester_id = sem.semester_id
 JOIN results r ON cr.registration_id = r.registration_id;
 
@@ -518,7 +505,7 @@ SELECT
 FROM courses c
 JOIN departments d ON c.department_id = d.department_id
 LEFT JOIN course_registrations cr ON c.course_id = cr.course_id
-LEFT JOIN academic_sessions sess ON cr.session_id = sess.session_id
+LEFT JOIN sessions sess ON cr.session_id = sess.session_id
 LEFT JOIN semesters sem ON cr.semester_id = sem.semester_id
 LEFT JOIN results r ON cr.registration_id = r.registration_id
 GROUP BY c.course_id, sess.session_id, sem.semester_id;
